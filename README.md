@@ -129,7 +129,7 @@ npm run deploy
 
 L'URL de déploiement s'affiche à la fin :
 ```
-✅ Deployed trail-timing to https://trail-timing.<votre-sous-domaine>.workers.dev
+✅ Deployed trail-timing to https://trail-timing.plancatges.workers.dev
 ```
 
 ---
