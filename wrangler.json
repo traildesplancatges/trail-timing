@@ -1,0 +1,27 @@
+{
+	"name": "trail-timing",
+	"compatibility_date": "2025-01-01",
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	"main": "src/worker.ts",
+	"assets": {
+		"directory": "src/public",
+		"not_found_handling": "single-page-application"
+	},
+	"observability": {
+		"enabled": true
+	},
+	"d1_databases": [
+		{
+			"binding": "trail_timing_db",
+			"database_name": "trail-timing-db",
+			"database_id": "02f0071a-7432-4ae6-9ea9-ee8892a38dc4"
+		}
+	],
+	"vars": {
+		"ADMIN_PASSWORD": "REMPLACER_EN_SECRET",
+		"JWT_SECRET": "REMPLACER_EN_SECRET",
+		"BENEVOLAT_TOKEN": "REMPLACER_EN_SECRET"
+	}
+}

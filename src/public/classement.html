@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trail Timing — Classement</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --green:   #16a34a;
+      --gold:    #f59e0b;
+      --silver:  #94a3b8;
+      --bronze:  #b45309;
+      --bg:      #0f172a;
+      --card:    #1e293b;
+      --border:  #334155;
+      --text:    #f1f5f9;
+      --muted:   #94a3b8;
+      --accent:  #22d3ee;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100dvh;
+    }
+
+    /* ── Header ── */
+    header {
+      background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%);
+      border-bottom: 2px solid var(--accent);
+      padding: 20px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .header-left h1 {
+      font-size: 1.5rem;
+      font-weight: 800;
+      letter-spacing: -.02em;
+    }
+    .header-left h1 span { color: var(--accent); }
+    .header-sub { font-size: .85rem; color: var(--muted); margin-top: 2px; }
+
+    #refresh-info {
+      font-size: .78rem;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    #refresh-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%,100% { opacity: 1; }
+      50%      { opacity: .3; }
+    }
+
+    /* ── Onglets courses ── */
+    #tabs {
+      display: flex;
+      gap: 8px;
+      padding: 16px 24px 0;
+      border-bottom: 1px solid var(--border);
+      overflow-x: auto;
+    }
+    .tab {
+      padding: 10px 20px;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      font-size: .95rem;
+      font-weight: 600;
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      margin-bottom: -1px;
+      white-space: nowrap;
+      transition: color .2s;
+    }
+    .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .tab:hover:not(.active) { color: var(--text); }
+    .tab-badge {
+      display: inline-block;
+      background: var(--border);
+      color: var(--muted);
+      font-size: .7rem;
+      padding: 1px 7px;
+      border-radius: 99px;
+      margin-left: 6px;
+      vertical-align: middle;
+    }
+    .tab.active .tab-badge { background: var(--accent); color: var(--bg); }
+
+    /* ── Filtres ── */
+    #filters {
+      padding: 14px 24px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    #search-input {
+      padding: 8px 14px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--card);
+      color: var(--text);
+      font-size: .9rem;
+      width: 200px;
+    }
+    #search-input::placeholder { color: var(--muted); }
+    #search-input:focus { outline: none; border-color: var(--accent); }
+
+    .filter-btn {
+      padding: 7px 14px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--card);
+      color: var(--muted);
+      font-size: .85rem;
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .filter-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(34,211,238,.1); }
+
+    #course-info {
+      margin-left: auto;
+      font-size: .82rem;
+      color: var(--muted);
+    }
+
+    /* ── Tableau ── */
+    #table-wrap {
+      padding: 0 24px 40px;
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .9rem;
+    }
+    thead th {
+      padding: 10px 12px;
+      text-align: left;
+      font-size: .72rem;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    tbody tr {
+      border-bottom: 1px solid rgba(255,255,255,.04);
+      transition: background .15s;
+    }
+    tbody tr:hover { background: rgba(255,255,255,.04); }
+    tbody tr.new-entry {
+      animation: highlight .8s ease-out;
+    }
+    @keyframes highlight {
+      from { background: rgba(34,211,238,.2); }
+      to   { background: transparent; }
+    }
+
+    td { padding: 11px 12px; vertical-align: middle; }
+
+    /* Position */
+    .td-pos {
+      width: 52px;
+      text-align: center;
+      font-weight: 800;
+      font-size: 1rem;
+    }
+    .medal {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: .9rem;
+      font-weight: 800;
+    }
+    .medal-1 { background: #fef3c7; color: #92400e; }
+    .medal-2 { background: #f1f5f9; color: #475569; }
+    .medal-3 { background: #fef3c7; color: var(--bronze); }
+
+    /* Dossard */
+    .td-dossard {
+      width: 70px;
+      font-weight: 700;
+      color: var(--muted);
+      font-size: .85rem;
+    }
+
+    /* Nom */
+    .td-nom .full-name { font-weight: 700; font-size: .95rem; }
+    .td-nom .club      { font-size: .75rem; color: var(--muted); margin-top: 1px; }
+
+    /* Catégorie */
+    .td-cat {
+      width: 80px;
+    }
+    .cat-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: .72rem;
+      font-weight: 700;
+      background: var(--border);
+      color: var(--muted);
+    }
+
+    /* Sexe */
+    .td-sexe { width: 50px; text-align: center; font-size: .85rem; color: var(--muted); }
+
+    /* Temps */
+    .td-temps {
+      width: 110px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    /* ── États ── */
+    #state-msg {
+      padding: 60px 24px;
+      text-align: center;
+      color: var(--muted);
+    }
+    #state-msg .icon { font-size: 3rem; margin-bottom: 12px; }
+    #state-msg p { font-size: 1.1rem; }
+
+    /* ── Podium (top 3) ── */
+    #podium {
+      display: none;
+      padding: 24px 24px 0;
+      gap: 12px;
+      justify-content: center;
+      align-items: flex-end;
+    }
+    #podium.visible { display: flex; }
+    .podium-block {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 12px 12px;
+      text-align: center;
+      flex: 1;
+      max-width: 160px;
+    }
+    .podium-block.p1 { border-color: var(--gold); max-width: 180px; }
+    .podium-block .p-medal { font-size: 2rem; }
+    .podium-block .p-nom { font-size: .85rem; font-weight: 700; margin-top: 6px; }
+    .podium-block .p-dossard { font-size: .72rem; color: var(--muted); }
+    .podium-block .p-temps { font-family: monospace; font-size: .9rem; color: var(--accent); margin-top: 4px; }
+
+    /* ── Compteurs sidebar-like ── */
+    #stats-bar {
+      display: flex;
+      gap: 16px;
+      padding: 14px 24px;
+      border-top: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+    .stat-item { font-size: .82rem; color: var(--muted); }
+    .stat-item strong { color: var(--text); font-weight: 700; }
+
+    /* ── Responsive ── */
+    @media (max-width: 600px) {
+      header { padding: 14px 16px; }
+      #tabs  { padding: 12px 16px 0; }
+      #filters, #table-wrap, #stats-bar { padding-left: 16px; padding-right: 16px; }
+      #search-input { width: 140px; }
+      .td-cat, .td-sexe { display: none; }
+      .td-nom .club { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <h1>🏔 Trail <span>des Plancatges</span></h1>
+    <div class="header-sub">Classement en direct</div>
+  </div>
+  <div id="refresh-info">
+    <div id="refresh-dot"></div>
+    <span id="refresh-label">Mise à jour dans <strong id="countdown">15</strong>s</span>
+  </div>
+</header>
+
+<!-- Onglets courses -->
+<div id="tabs"></div>
+
+<!-- Stats rapides -->
+<div id="stats-bar">
+  <div class="stat-item">Arrivés : <strong id="stat-arrives">—</strong></div>
+  <div class="stat-item">Inscrits : <strong id="stat-inscrits">—</strong></div>
+  <div class="stat-item">Statut : <strong id="stat-statut">—</strong></div>
+  <div class="stat-item" id="stat-dernier-wrap" style="display:none">
+    Dernier : <strong id="stat-dernier">—</strong>
+  </div>
+</div>
+
+<!-- Filtres -->
+<div id="filters">
+  <input type="search" id="search-input" placeholder="🔍 Nom, dossard…" />
+  <button class="filter-btn active" data-filter="all">Tous</button>
+  <button class="filter-btn" data-filter="M">Hommes</button>
+  <button class="filter-btn" data-filter="F">Femmes</button>
+  <span id="course-info"></span>
+</div>
+
+<!-- Podium (masqué si < 3 arrivées) -->
+<div id="podium"></div>
+
+<!-- Tableau -->
+<div id="table-wrap">
+  <div id="state-msg">
+    <div class="icon">⏳</div>
+    <p>Chargement du classement…</p>
+  </div>
+  <table id="classement-table" style="display:none">
+    <thead>
+      <tr>
+        <th class="td-pos">Pos.</th>
+        <th class="td-dossard">#</th>
+        <th>Coureur</th>
+        <th class="td-cat">Catég.</th>
+        <th class="td-sexe">Sexe</th>
+        <th class="td-temps">Temps</th>
+      </tr>
+    </thead>
+    <tbody id="classement-body"></tbody>
+  </table>
+</div>
+
+<script>
+// ─── État ─────────────────────────────────────────────────────────────────────
+const state = {
+  courses:      [],
+  courseId:     null,
+  classement:   [],
+  filter:       'all',
+  searchTerm:   '',
+  countdownVal: 15,
+  countdownTimer: null,
+  refreshTimer:   null,
+  prevDossards:   new Set(),
+};
+
+// ─── DOM ──────────────────────────────────────────────────────────────────────
+const tabsEl       = document.getElementById('tabs');
+const tableEl      = document.getElementById('classement-table');
+const bodyEl       = document.getElementById('classement-body');
+const stateMsgEl   = document.getElementById('state-msg');
+const podiumEl     = document.getElementById('podium');
+const searchInput  = document.getElementById('search-input');
+const courseInfoEl = document.getElementById('course-info');
+const statArrivesEl  = document.getElementById('stat-arrives');
+const statInscritsEl = document.getElementById('stat-inscrits');
+const statStatutEl   = document.getElementById('stat-statut');
+const statDernierEl  = document.getElementById('stat-dernier');
+const statDernierWrap = document.getElementById('stat-dernier-wrap');
+const countdownEl  = document.getElementById('countdown');
+
+// ─── Init ────────────────────────────────────────────────────────────────────
+(async function init() {
+  // Lire courseId depuis l'URL (?course=2)
+  const params = new URLSearchParams(location.search);
+  if (params.get('course')) state.courseId = Number(params.get('course'));
+
+  await loadCourses();
+  await loadClassement();
+  startCountdown();
+
+  // Filtres sexe
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.filter = btn.dataset.filter;
+      renderTable();
+    });
+  });
+
+  searchInput.addEventListener('input', () => {
+    state.searchTerm = searchInput.value.trim().toLowerCase();
+    renderTable();
+  });
+})();
+
+// ─── Courses ─────────────────────────────────────────────────────────────────
+async function loadCourses() {
+  try {
+    const res = await fetch('/api/courses');
+    state.courses = await res.json();
+  } catch { return; }
+
+  // Sélectionner la première course en cours par défaut
+  if (!state.courseId) {
+    const encours = state.courses.find(c => c.statut === 'en_cours');
+    state.courseId = (encours || state.courses[0])?.id ?? 1;
+  }
+
+  renderTabs();
+}
+
+function renderTabs() {
+  tabsEl.innerHTML = state.courses.map(c => {
+    const statuts = { attente: '⏳', en_cours: '🟢', terminee: '🏁' };
+    return `<button class="tab ${c.id === state.courseId ? 'active' : ''}"
+                    data-id="${c.id}">
+              ${statuts[c.statut] || ''} ${c.nom}
+              <span class="tab-badge">${c.nb_arrives}</span>
+            </button>`;
+  }).join('');
+
+  tabsEl.querySelectorAll('.tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.courseId = Number(btn.dataset.id);
+      state.prevDossards.clear();
+      renderTabs();
+      loadClassement();
+      resetCountdown();
+    });
+  });
+}
+
+// ─── Classement ──────────────────────────────────────────────────────────────
+async function loadClassement() {
+  try {
+    const res  = await fetch(`/api/classement/${state.courseId}`);
+    const data = await res.json();
+
+    const course = data.course;
+    state.classement = data.classement ?? [];
+
+    // Stats bar
+    const coursTrouve = state.courses.find(c => c.id === state.courseId);
+    statArrivesEl.textContent  = state.classement.length;
+    statInscritsEl.textContent = coursTrouve?.nb_inscrits ?? '—';
+    const labels = { attente: 'Pas démarrée', en_cours: 'En cours 🟢', terminee: 'Terminée 🏁' };
+    statStatutEl.textContent   = labels[course.statut] ?? course.statut;
+
+    if (state.classement.length > 0) {
+      const dernier = state.classement[state.classement.length - 1];
+      statDernierEl.textContent = `#${dernier.dossard} ${dernier.prenom} ${dernier.nom} — ${dernier.temps_brut}`;
+      statDernierWrap.style.display = '';
+    }
+
+    if (course.heure_depart) {
+      const depart = new Date(course.heure_depart);
+      courseInfoEl.textContent = `Départ : ${depart.toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'})}`;
+    } else {
+      courseInfoEl.textContent = '';
+    }
+
+    renderPodium();
+    renderTable();
+
+  } catch (e) {
+    showStateMsg('❌', 'Erreur de chargement. Vérifiez la connexion.');
+  }
+}
+
+// ─── Podium ───────────────────────────────────────────────────────────────────
+function renderPodium() {
+  const top3 = state.classement.slice(0, 3);
+  if (top3.length < 3) {
+    podiumEl.classList.remove('visible');
+    podiumEl.innerHTML = '';
+    return;
+  }
+
+  const medals = ['🥇', '🥈', '🥉'];
+  const order  = [1, 0, 2]; // Affichage : 2e, 1er, 3e pour l'effet podium
+  podiumEl.innerHTML = order.map(i => {
+    const c = top3[i];
+    return `<div class="podium-block ${i === 0 ? 'p1' : ''}">
+      <div class="p-medal">${medals[i]}</div>
+      <div class="p-nom">${escHtml(c.prenom)} ${escHtml(c.nom)}</div>
+      <div class="p-dossard">#${c.dossard}</div>
+      <div class="p-temps">${c.temps_brut}</div>
+    </div>`;
+  }).join('');
+  podiumEl.classList.add('visible');
+}
+
+// ─── Tableau ──────────────────────────────────────────────────────────────────
+function renderTable() {
+  let rows = [...state.classement];
+
+  // Filtre sexe
+  if (state.filter !== 'all') {
+    rows = rows.filter(r => r.sexe === state.filter);
+    // Recalcule la position dans la catégorie filtrée
+    rows = rows.map((r, i) => ({ ...r, position: i + 1 }));
+  }
+
+  // Recherche texte
+  if (state.searchTerm) {
+    rows = rows.filter(r =>
+      String(r.dossard).includes(state.searchTerm) ||
+      r.nom.toLowerCase().includes(state.searchTerm) ||
+      r.prenom.toLowerCase().includes(state.searchTerm) ||
+      r.club.toLowerCase().includes(state.searchTerm)
+    );
+  }
+
+  if (!rows.length) {
+    if (state.classement.length === 0) {
+      const course = state.courses.find(c => c.id === state.courseId);
+      if (course?.statut === 'attente') {
+        showStateMsg('🏁', 'La course n\'a pas encore démarré.');
+      } else {
+        showStateMsg('⏳', 'En attente des premiers coureurs…');
+      }
+    } else {
+      showStateMsg('🔍', 'Aucun résultat pour cette recherche.');
+    }
+    tableEl.style.display = 'none';
+    return;
+  }
+
+  stateMsgEl.style.display = 'none';
+  tableEl.style.display = 'table';
+
+  const newDossards = new Set(rows.map(r => r.dossard));
+
+  bodyEl.innerHTML = rows.map(r => {
+    const isNew = !state.prevDossards.has(r.dossard) && state.prevDossards.size > 0;
+    const posCell = r.position <= 3
+      ? `<span class="medal medal-${r.position}">${r.position}</span>`
+      : `<strong>${r.position}</strong>`;
+
+    return `<tr class="${isNew ? 'new-entry' : ''}">
+      <td class="td-pos">${posCell}</td>
+      <td class="td-dossard">${r.dossard}</td>
+      <td class="td-nom">
+        <div class="full-name">${escHtml(r.prenom)} ${escHtml(r.nom)}</div>
+        ${r.club ? `<div class="club">${escHtml(r.club)}</div>` : ''}
+      </td>
+      <td class="td-cat"><span class="cat-badge">${escHtml(r.categorie) || '—'}</span></td>
+      <td class="td-sexe">${r.sexe === 'F' ? '♀' : '♂'}</td>
+      <td class="td-temps">${r.temps_brut}</td>
+    </tr>`;
+  }).join('');
+
+  state.prevDossards = newDossards;
+}
+
+function showStateMsg(icon, text) {
+  stateMsgEl.innerHTML = `<div class="icon">${icon}</div><p>${text}</p>`;
+  stateMsgEl.style.display = '';
+  tableEl.style.display = 'none';
+}
+
+// ─── Countdown & refresh auto ─────────────────────────────────────────────────
+function startCountdown() {
+  state.countdownVal = 15;
+  countdownEl.textContent = state.countdownVal;
+
+  clearInterval(state.countdownTimer);
+  state.countdownTimer = setInterval(async () => {
+    state.countdownVal--;
+    countdownEl.textContent = state.countdownVal;
+    if (state.countdownVal <= 0) {
+      await loadCourses();
+      await loadClassement();
+      resetCountdown();
+    }
+  }, 1000);
+}
+
+function resetCountdown() {
+  clearInterval(state.countdownTimer);
+  startCountdown();
+}
+
+// ─── Utils ────────────────────────────────────────────────────────────────────
+function escHtml(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// Rafraîchissement auto plus rapide si course en cours
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    loadCourses();
+    loadClassement();
+    resetCountdown();
+  }
+});
+</script>
+</body>
+</html>

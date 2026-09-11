@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trail Timing — Accueil</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%);
+      min-height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #f1f5f9;
+    }
+    .container { text-align: center; padding: 24px; max-width: 480px; width: 100%; }
+    h1 { font-size: 2rem; font-weight: 900; margin-bottom: 6px; }
+    h1 span { color: #22d3ee; }
+    p { color: #94a3b8; margin-bottom: 40px; }
+    .cards { display: flex; flex-direction: column; gap: 14px; }
+    a.card {
+      display: flex; align-items: center; gap: 16px;
+      background: rgba(255,255,255,.07);
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 14px; padding: 20px 24px;
+      text-decoration: none; color: inherit;
+      transition: background .2s, transform .15s;
+    }
+    a.card:hover { background: rgba(255,255,255,.12); transform: translateY(-2px); }
+    .card-icon { font-size: 2.2rem; width: 48px; text-align: center; flex-shrink: 0; }
+    .card-text h2 { font-size: 1.05rem; font-weight: 700; }
+    .card-text p  { font-size: .82rem; color: #94a3b8; margin: 2px 0 0; }
+    footer { margin-top: 32px; font-size: .75rem; color: #475569; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🏔 Trail <span>des Plancatges</span></h1>
+    <p>Système de chronométrage</p>
+    <div class="cards">
+      <a class="card" href="/classement.html">
+        <div class="card-icon">🏆</div>
+        <div class="card-text">
+          <h2>Classement en direct</h2>
+          <p>Résultats publics mis à jour en temps réel</p>
+        </div>
+      </a>
+      <a class="card" href="/benevole.html">
+        <div class="card-icon">🏃</div>
+        <div class="card-text">
+          <h2>Interface bénévole</h2>
+          <p>Saisie des dossards à l'arrivée (scan QR ou manuel)</p>
+        </div>
+      </a>
+      <a class="card" href="/admin.html">
+        <div class="card-icon">⚙️</div>
+        <div class="card-text">
+          <h2>Administration</h2>
+          <p>Gestion des courses, import coureurs, export CSV</p>
+        </div>
+      </a>
+    </div>
+    <footer>Trail des Plancatges · Chronométrage</footer>
+  </div>
+</body>
+</html>

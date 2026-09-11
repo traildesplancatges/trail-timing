@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Trail Timing — Bénévole</title>
+  <style>
+    /* ── Reset & base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --green:  #16a34a;
+      --red:    #dc2626;
+      --orange: #ea580c;
+      --blue:   #2563eb;
+      --bg:     #f8fafc;
+      --card:   #ffffff;
+      --border: #e2e8f0;
+      --text:   #0f172a;
+      --muted:  #64748b;
+    }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--green);
+      color: #fff;
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      box-shadow: 0 2px 8px rgba(0,0,0,.2);
+    }
+    header h1 { font-size: 1.1rem; font-weight: 700; }
+    #course-badge {
+      font-size: .75rem;
+      background: rgba(255,255,255,.25);
+      padding: 3px 10px;
+      border-radius: 99px;
+      white-space: nowrap;
+    }
+
+    /* ── Main ── */
+    main { flex: 1; padding: 16px; max-width: 480px; margin: 0 auto; width: 100%; }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .card h2 { font-size: .95rem; font-weight: 600; margin-bottom: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+
+    /* ── Setup ── */
+    select, input[type="text"], input[type="number"], input[type="password"] {
+      width: 100%;
+      padding: 12px 14px;
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      font-size: 1rem;
+      background: #fff;
+      color: var(--text);
+      margin-bottom: 10px;
+      appearance: none;
+    }
+    select:focus, input:focus { outline: none; border-color: var(--green); }
+
+    /* ── Dossard input ── */
+    #dossard-input {
+      font-size: 2.5rem;
+      font-weight: 700;
+      text-align: center;
+      letter-spacing: .1em;
+      padding: 16px;
+      border: 3px solid var(--border);
+      border-radius: 12px;
+      width: 100%;
+      margin-bottom: 12px;
+    }
+    #dossard-input:focus { border-color: var(--green); outline: none; }
+
+    /* ── Buttons ── */
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      padding: 16px;
+      border: none;
+      border-radius: 10px;
+      font-size: 1.1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity .15s, transform .1s;
+      margin-bottom: 10px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn:active { transform: scale(.97); opacity: .85; }
+    .btn-green  { background: var(--green);  color: #fff; }
+    .btn-blue   { background: var(--blue);   color: #fff; }
+    .btn-orange { background: var(--orange); color: #fff; }
+    .btn-ghost  { background: var(--border); color: var(--text); }
+    .btn:disabled { opacity: .45; cursor: not-allowed; }
+
+    /* ── Toast / feedback ── */
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(120px);
+      min-width: 280px;
+      max-width: 90vw;
+      padding: 16px 20px;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 600;
+      text-align: center;
+      color: #fff;
+      z-index: 100;
+      transition: transform .3s cubic-bezier(.34,1.56,.64,1);
+      box-shadow: 0 8px 24px rgba(0,0,0,.2);
+    }
+    #toast.show { transform: translateX(-50%) translateY(0); }
+    #toast.success { background: var(--green); }
+    #toast.error   { background: var(--red); }
+    #toast.warning { background: var(--orange); }
+
+    /* ── Historique ── */
+    #historique { list-style: none; max-height: 320px; overflow-y: auto; }
+    #historique li {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: .9rem;
+    }
+    #historique li:last-child { border-bottom: none; }
+    .hist-dossard { font-size: 1.3rem; font-weight: 700; min-width: 54px; }
+    .hist-info { flex: 1; padding: 0 10px; }
+    .hist-info .nom { font-weight: 600; }
+    .hist-info .temps { font-size: .8rem; color: var(--muted); }
+    .hist-pos {
+      font-size: 1.1rem;
+      font-weight: 700;
+      background: var(--green);
+      color: #fff;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .hist-pos.dup { background: var(--orange); font-size: .7rem; }
+
+    /* ── Scanner overlay ── */
+    #scanner-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: #000;
+      z-index: 50;
+      flex-direction: column;
+      align-items: center;
+    }
+    #scanner-overlay.active { display: flex; }
+    #scanner-video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    #scanner-frame {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -55%);
+      width: min(280px, 80vw);
+      height: min(280px, 80vw);
+      border: 3px solid #fff;
+      border-radius: 16px;
+      box-shadow: 0 0 0 9999px rgba(0,0,0,.55);
+    }
+    #scanner-hint {
+      position: absolute;
+      bottom: 100px;
+      color: #fff;
+      font-size: .95rem;
+      text-align: center;
+      padding: 0 24px;
+    }
+    #scanner-close {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: rgba(255,255,255,.2);
+      border: none;
+      color: #fff;
+      font-size: 1.8rem;
+      line-height: 1;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* ── Setup screen ── */
+    #setup-screen { display: flex; flex-direction: column; }
+    #main-screen  { display: none; flex-direction: column; }
+
+    /* ── Status bar ── */
+    #status-bar {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+    .status-chip {
+      font-size: .75rem;
+      padding: 4px 10px;
+      border-radius: 99px;
+      font-weight: 600;
+    }
+    .chip-green  { background: #dcfce7; color: var(--green); }
+    .chip-orange { background: #ffedd5; color: var(--orange); }
+    .chip-blue   { background: #dbeafe; color: var(--blue); }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🏃 Arrivées</h1>
+  <span id="course-badge">—</span>
+</header>
+
+<main>
+
+  <!-- ══ ÉCRAN SETUP ══ -->
+  <div id="setup-screen">
+    <div class="card">
+      <h2>Configuration</h2>
+      <select id="sel-course">
+        <option value="">Chargement des courses…</option>
+      </select>
+      <input type="text"     id="inp-benevole" placeholder="Votre prénom / identifiant" />
+      <input type="password" id="inp-token"    placeholder="Code d'accès bénévole" />
+      <button class="btn btn-green" id="btn-connect">Commencer la saisie</button>
+    </div>
+    <p style="text-align:center;font-size:.8rem;color:var(--muted)">
+      Demandez le code d'accès à l'administrateur.
+    </p>
+  </div>
+
+  <!-- ══ ÉCRAN SAISIE ══ -->
+  <div id="main-screen">
+
+    <div id="status-bar">
+      <span class="status-chip chip-green" id="chip-course">—</span>
+      <span class="status-chip chip-blue"  id="chip-benevole">—</span>
+      <span class="status-chip chip-orange" id="chip-count">0 arrivées</span>
+    </div>
+
+    <div class="card">
+      <h2>Saisie du dossard</h2>
+      <input type="number" id="dossard-input" placeholder="Ex : 142"
+             inputmode="numeric" pattern="[0-9]*" min="1" max="9999"
+             autocomplete="off" />
+      <button class="btn btn-green"  id="btn-valider">✓ Valider l'arrivée</button>
+      <button class="btn btn-blue"   id="btn-scan">📷 Scanner QR Code</button>
+      <button class="btn btn-ghost"  id="btn-deconnect" style="margin-top:4px;font-size:.85rem;padding:10px;">
+        ← Changer de course
+      </button>
+    </div>
+
+    <div class="card">
+      <h2>Dernières arrivées <span id="hist-count" style="color:var(--muted);font-weight:400"></span></h2>
+      <ul id="historique"><li style="color:var(--muted);font-size:.9rem">Aucune arrivée enregistrée.</li></ul>
+    </div>
+
+  </div>
+</main>
+
+<!-- Scanner overlay -->
+<div id="scanner-overlay">
+  <video id="scanner-video" playsinline muted></video>
+  <div id="scanner-frame"></div>
+  <p id="scanner-hint">Pointez la caméra vers le QR code du dossard</p>
+  <button id="scanner-close">✕</button>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<!-- jsQR pour le décodage QR (lib légère, ~30KB) -->
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+
+<script>
+// ─── État global ──────────────────────────────────────────────────────────────
+const state = {
+  courseId:   null,
+  courseNom:  '',
+  benevoleId: '',
+  token:      '',
+  count:      0,
+  historique: [],
+  scanning:   false,
+  videoStream: null,
+  scanInterval: null,
+};
+
+// ─── DOM refs ─────────────────────────────────────────────────────────────────
+const selCourse    = document.getElementById('sel-course');
+const inpBenevole  = document.getElementById('inp-benevole');
+const inpToken     = document.getElementById('inp-token');
+const btnConnect   = document.getElementById('btn-connect');
+const btnValider   = document.getElementById('btn-valider');
+const btnScan      = document.getElementById('btn-scan');
+const btnDeconnect = document.getElementById('btn-deconnect');
+const dossardInput = document.getElementById('dossard-input');
+const setupScreen  = document.getElementById('setup-screen');
+const mainScreen   = document.getElementById('main-screen');
+const histList     = document.getElementById('historique');
+const histCount    = document.getElementById('hist-count');
+const chipCourse   = document.getElementById('chip-course');
+const chipBenevole = document.getElementById('chip-benevole');
+const chipCount    = document.getElementById('chip-count');
+const courseBadge  = document.getElementById('course-badge');
+const toastEl      = document.getElementById('toast');
+const scanOverlay  = document.getElementById('scanner-overlay');
+const scanVideo    = document.getElementById('scanner-video');
+const scanClose    = document.getElementById('scanner-close');
+
+// ─── Toast ────────────────────────────────────────────────────────────────────
+let toastTimer = null;
+function showToast(msg, type = 'success', duration = 3500) {
+  clearTimeout(toastTimer);
+  toastEl.textContent = msg;
+  toastEl.className = `show ${type}`;
+  toastTimer = setTimeout(() => toastEl.classList.remove('show'), duration);
+}
+
+// ─── Chargement des courses ───────────────────────────────────────────────────
+async function loadCourses() {
+  try {
+    const res = await fetch('/api/courses');
+    const courses = await res.json();
+    selCourse.innerHTML = '<option value="">— Choisir une course —</option>';
+    courses.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c.id;
+      const statuts = { attente: '⏳', en_cours: '🟢', terminee: '🏁' };
+      opt.textContent = `${statuts[c.statut] || ''} ${c.nom} (${c.nb_arrives} arrivées)`;
+      if (c.statut === 'terminee') opt.disabled = true;
+      selCourse.appendChild(opt);
+    });
+  } catch {
+    showToast('Impossible de charger les courses', 'error');
+  }
+}
+
+// ─── Connexion ────────────────────────────────────────────────────────────────
+btnConnect.addEventListener('click', () => {
+  const courseId  = selCourse.value;
+  const benevole  = inpBenevole.value.trim();
+  const token     = inpToken.value.trim();
+
+  if (!courseId)  return showToast('Choisissez une course', 'warning');
+  if (!benevole)  return showToast('Entrez votre prénom', 'warning');
+  if (!token)     return showToast('Entrez le code d\'accès', 'warning');
+
+  state.courseId   = Number(courseId);
+  state.courseNom  = selCourse.options[selCourse.selectedIndex].textContent.trim();
+  state.benevoleId = benevole;
+  state.token      = token;
+
+  // Persister localement pour éviter de tout ressaisir
+  localStorage.setItem('trail_benevole', benevole);
+  localStorage.setItem('trail_token',    token);
+
+  showMainScreen();
+});
+
+// ─── Affichage écran principal ────────────────────────────────────────────────
+function showMainScreen() {
+  setupScreen.style.display = 'none';
+  mainScreen.style.display  = 'flex';
+  chipCourse.textContent    = state.courseNom;
+  chipBenevole.textContent  = '👤 ' + state.benevoleId;
+  courseBadge.textContent   = state.courseNom;
+  updateCount();
+  dossardInput.focus();
+}
+
+function updateCount() {
+  chipCount.textContent = `${state.count} arrivée${state.count > 1 ? 's' : ''}`;
+}
+
+// ─── Déconnexion ──────────────────────────────────────────────────────────────
+btnDeconnect.addEventListener('click', () => {
+  mainScreen.style.display  = 'none';
+  setupScreen.style.display = 'flex';
+  courseBadge.textContent   = '—';
+  dossardInput.value        = '';
+  loadCourses();
+});
+
+// ─── Valider arrivée ──────────────────────────────────────────────────────────
+btnValider.addEventListener('click', () => soumettreArrivee(dossardInput.value));
+
+dossardInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') soumettreArrivee(dossardInput.value);
+});
+
+async function soumettreArrivee(valeur) {
+  const dossard = parseInt(valeur, 10);
+  if (!dossard || dossard < 1) {
+    showToast('Numéro de dossard invalide', 'warning');
+    dossardInput.select();
+    return;
+  }
+
+  btnValider.disabled = true;
+  btnValider.textContent = '⏳ Enregistrement…';
+
+  try {
+    const res = await fetch('/api/arrivee', {
+      method: 'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': `Bearer ${state.token}`,
+      },
+      body: JSON.stringify({
+        dossard,
+        course_id:   state.courseId,
+        benevole_id: state.benevoleId,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (res.status === 201) {
+      // ✅ Succès
+      state.count++;
+      updateCount();
+      const nomCoureur = data.coureur
+        ? `${data.coureur.prenom} ${data.coureur.nom}`
+        : `Dossard ${dossard}`;
+      showToast(`✅ #${dossard} — ${nomCoureur}\n${data.temps_brut} · Place ${data.position}`, 'success', 4000);
+      ajouterHistorique({
+        dossard,
+        nom: nomCoureur,
+        temps: data.temps_brut,
+        position: data.position,
+        doublon: false,
+      });
+      dossardInput.value = '';
+      // Vibration feedback sur mobile
+      if (navigator.vibrate) navigator.vibrate([80, 30, 80]);
+
+    } else if (res.status === 409) {
+      // ⚠️ Doublon
+      const heure = data.heure_arrivee
+        ? new Date(data.heure_arrivee).toLocaleTimeString('fr-FR')
+        : '?';
+      showToast(`⚠️ Dossard ${dossard} DÉJÀ enregistré à ${heure}`, 'warning', 5000);
+      ajouterHistorique({
+        dossard,
+        nom: `Déjà enregistré à ${heure}`,
+        temps: '',
+        position: 'DUP',
+        doublon: true,
+      });
+      if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+
+    } else if (res.status === 401) {
+      showToast('❌ Code d\'accès invalide — retournez à la configuration', 'error');
+    } else if (res.status === 422) {
+      showToast(`⛔ Course non démarrée — demandez à l'admin de démarrer la course`, 'error', 5000);
+    } else {
+      showToast(`❌ Erreur : ${data.error || res.status}`, 'error');
+    }
+
+  } catch (e) {
+    showToast('❌ Pas de réseau — réessayez', 'error');
+  } finally {
+    btnValider.disabled = false;
+    btnValider.textContent = '✓ Valider l\'arrivée';
+    dossardInput.focus();
+    dossardInput.select();
+  }
+}
+
+// ─── Historique ───────────────────────────────────────────────────────────────
+function ajouterHistorique({ dossard, nom, temps, position, doublon }) {
+  state.historique.unshift({ dossard, nom, temps, position, doublon });
+  if (state.historique.length > 20) state.historique.pop();
+  renderHistorique();
+}
+
+function renderHistorique() {
+  if (!state.historique.length) {
+    histList.innerHTML = '<li style="color:var(--muted);font-size:.9rem">Aucune arrivée.</li>';
+    histCount.textContent = '';
+    return;
+  }
+  histCount.textContent = `(${state.historique.length})`;
+  histList.innerHTML = state.historique.map(h => `
+    <li>
+      <span class="hist-dossard">#${h.dossard}</span>
+      <span class="hist-info">
+        <div class="nom">${escHtml(h.nom)}</div>
+        <div class="temps">${h.temps || ''}</div>
+      </span>
+      <span class="hist-pos ${h.doublon ? 'dup' : ''}">${h.doublon ? 'DUP' : h.position}</span>
+    </li>
+  `).join('');
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ─── Scanner QR ───────────────────────────────────────────────────────────────
+btnScan.addEventListener('click', ouvrirScanner);
+scanClose.addEventListener('click', fermerScanner);
+
+async function ouvrirScanner() {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    showToast('Caméra non disponible sur ce navigateur', 'error');
+    return;
+  }
+  try {
+    state.videoStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+    });
+    scanVideo.srcObject = state.videoStream;
+    await scanVideo.play();
+    scanOverlay.classList.add('active');
+    state.scanning = true;
+    demarrerScan();
+  } catch (e) {
+    showToast('Impossible d\'accéder à la caméra : ' + e.message, 'error');
+  }
+}
+
+function fermerScanner() {
+  state.scanning = false;
+  clearInterval(state.scanInterval);
+  if (state.videoStream) {
+    state.videoStream.getTracks().forEach(t => t.stop());
+    state.videoStream = null;
+  }
+  scanOverlay.classList.remove('active');
+}
+
+function demarrerScan() {
+  const canvas = document.createElement('canvas');
+  const ctx    = canvas.getContext('2d');
+
+  state.scanInterval = setInterval(() => {
+    if (!state.scanning || scanVideo.readyState < 2) return;
+    const w = scanVideo.videoWidth;
+    const h = scanVideo.videoHeight;
+    if (!w || !h) return;
+
+    canvas.width  = w;
+    canvas.height = h;
+    ctx.drawImage(scanVideo, 0, 0, w, h);
+    const imageData = ctx.getImageData(0, 0, w, h);
+    const code = jsQR(imageData.data, w, h, { inversionAttempts: 'dontInvert' });
+
+    if (code && code.data) {
+      // Le QR contient soit juste le numéro, soit une URL ?dossard=XXX
+      let dossard = null;
+      const urlMatch = code.data.match(/[?&]dossard=(\d+)/);
+      if (urlMatch) {
+        dossard = urlMatch[1];
+      } else if (/^\d+$/.test(code.data.trim())) {
+        dossard = code.data.trim();
+      }
+
+      if (dossard) {
+        fermerScanner();
+        dossardInput.value = dossard;
+        if (navigator.vibrate) navigator.vibrate(60);
+        showToast(`QR lu : dossard ${dossard}`, 'success', 1500);
+        setTimeout(() => soumettreArrivee(dossard), 600);
+      }
+    }
+  }, 150);
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+(function init() {
+  // Pré-remplir depuis localStorage
+  const savedBenevole = localStorage.getItem('trail_benevole');
+  const savedToken    = localStorage.getItem('trail_token');
+  if (savedBenevole) inpBenevole.value = savedBenevole;
+  if (savedToken)    inpToken.value    = savedToken;
+
+  loadCourses();
+})();
+</script>
+</body>
+</html>

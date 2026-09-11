@@ -1,0 +1,1350 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trail Timing — Administration</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --green:   #16a34a;
+      --red:     #dc2626;
+      --orange:  #ea580c;
+      --blue:    #2563eb;
+      --purple:  #7c3aed;
+      --bg:      #f1f5f9;
+      --card:    #ffffff;
+      --border:  #e2e8f0;
+      --text:    #0f172a;
+      --muted:   #64748b;
+      --sidebar: #1e293b;
+    }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100dvh;
+    }
+
+    /* ── Login ── */
+    #login-screen {
+      min-height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #0f172a, #1e3a5f);
+    }
+    .login-box {
+      background: #fff;
+      border-radius: 16px;
+      padding: 40px;
+      width: 360px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.3);
+    }
+    .login-box h1 { font-size: 1.4rem; font-weight: 800; margin-bottom: 6px; }
+    .login-box p  { font-size: .85rem; color: var(--muted); margin-bottom: 24px; }
+    .login-box input {
+      width: 100%; padding: 12px 14px;
+      border: 2px solid var(--border); border-radius: 8px;
+      font-size: 1rem; margin-bottom: 12px;
+    }
+    .login-box input:focus { outline: none; border-color: var(--blue); }
+
+    /* ── Layout admin ── */
+    #admin-screen { display: none; min-height: 100dvh; }
+    .admin-layout { display: flex; min-height: 100dvh; }
+
+    /* Sidebar */
+    .sidebar {
+      width: 220px;
+      background: var(--sidebar);
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      position: sticky;
+      top: 0;
+      height: 100dvh;
+    }
+    .sidebar-logo {
+      padding: 20px 16px;
+      font-weight: 800;
+      font-size: 1rem;
+      border-bottom: 1px solid rgba(255,255,255,.1);
+      line-height: 1.3;
+    }
+    .sidebar-logo span { color: #22d3ee; }
+    .sidebar nav { flex: 1; padding: 12px 0; }
+    .nav-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 11px 16px;
+      cursor: pointer;
+      font-size: .9rem;
+      color: #94a3b8;
+      border-left: 3px solid transparent;
+      transition: all .15s;
+    }
+    .nav-item:hover  { background: rgba(255,255,255,.06); color: #fff; }
+    .nav-item.active { background: rgba(34,211,238,.1); color: #22d3ee; border-left-color: #22d3ee; }
+    .nav-icon { font-size: 1.1rem; width: 22px; text-align: center; }
+    .sidebar-footer {
+      padding: 14px 16px;
+      border-top: 1px solid rgba(255,255,255,.1);
+      font-size: .8rem;
+      color: #64748b;
+    }
+
+    /* Main content */
+    .main-content { flex: 1; padding: 28px; overflow-y: auto; }
+    .page { display: none; }
+    .page.active { display: block; }
+    .page-title {
+      font-size: 1.4rem; font-weight: 800; margin-bottom: 20px;
+      padding-bottom: 14px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 10px;
+    }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .card-title {
+      font-size: .85rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .06em; color: var(--muted); margin-bottom: 14px;
+    }
+
+    /* Grille stats */
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 14px; margin-bottom: 20px; }
+    .stat-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 10px; padding: 16px;
+      display: flex; flex-direction: column; gap: 4px;
+    }
+    .stat-card .val  { font-size: 2rem; font-weight: 800; }
+    .stat-card .lbl  { font-size: .78rem; color: var(--muted); }
+    .stat-card.green { border-top: 3px solid var(--green); }
+    .stat-card.blue  { border-top: 3px solid var(--blue); }
+    .stat-card.orange{ border-top: 3px solid var(--orange); }
+    .stat-card.purple{ border-top: 3px solid var(--purple); }
+
+    /* Courses cards */
+    .courses-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+    .course-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 12px; padding: 18px;
+    }
+    .course-card .c-name { font-size: 1.2rem; font-weight: 800; margin-bottom: 4px; }
+    .course-card .c-meta { font-size: .82rem; color: var(--muted); margin-bottom: 14px; }
+    .course-card .c-stats {
+      display: flex; gap: 12px; margin-bottom: 14px;
+      font-size: .85rem;
+    }
+    .c-stat { text-align: center; }
+    .c-stat .n  { font-size: 1.4rem; font-weight: 800; display: block; }
+    .c-stat .lb { font-size: .72rem; color: var(--muted); }
+    .badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 3px 10px; border-radius: 99px;
+      font-size: .75rem; font-weight: 700; margin-bottom: 12px;
+    }
+    .badge-orange { background: #ffedd5; color: var(--orange); }
+    .badge-green  { background: #dcfce7; color: var(--green); }
+    .badge-blue   { background: #dbeafe; color: var(--blue); }
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    /* Boutons */
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 9px 16px; border: none; border-radius: 8px;
+      font-size: .85rem; font-weight: 600; cursor: pointer;
+      transition: opacity .15s, transform .1s;
+    }
+    .btn:active { transform: scale(.97); }
+    .btn:disabled { opacity: .4; cursor: not-allowed; }
+    .btn-green  { background: var(--green);  color: #fff; }
+    .btn-red    { background: var(--red);    color: #fff; }
+    .btn-orange { background: var(--orange); color: #fff; }
+    .btn-blue   { background: var(--blue);   color: #fff; }
+    .btn-purple { background: var(--purple); color: #fff; }
+    .btn-ghost  { background: var(--border); color: var(--text); }
+
+    /* Formulaires */
+    .form-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+    .form-group { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 140px; }
+    .form-group label { font-size: .8rem; font-weight: 600; color: var(--muted); }
+    input[type=text], input[type=number], input[type=datetime-local],
+    input[type=password], select, textarea {
+      padding: 9px 12px; border: 1px solid var(--border);
+      border-radius: 8px; font-size: .9rem;
+      background: #fff; color: var(--text); width: 100%;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none; border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(37,99,235,.1);
+    }
+    textarea { resize: vertical; font-family: 'SF Mono', monospace; font-size: .82rem; }
+
+    /* Tableau */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+    thead th {
+      padding: 8px 10px; text-align: left; font-size: .72rem;
+      text-transform: uppercase; letter-spacing: .06em;
+      color: var(--muted); border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    tbody tr { border-bottom: 1px solid var(--border); }
+    tbody tr:hover { background: #f8fafc; }
+    td { padding: 9px 10px; vertical-align: middle; }
+    td .btn { padding: 5px 10px; font-size: .78rem; }
+
+    /* Toast */
+    #toast {
+      position: fixed; bottom: 24px; right: 24px;
+      min-width: 260px; padding: 14px 18px;
+      border-radius: 10px; font-size: .9rem; font-weight: 600;
+      color: #fff; z-index: 200; opacity: 0;
+      transform: translateY(20px);
+      transition: all .3s cubic-bezier(.34,1.56,.64,1);
+      box-shadow: 0 8px 24px rgba(0,0,0,.15);
+    }
+    #toast.show { opacity: 1; transform: translateY(0); }
+    #toast.success { background: var(--green); }
+    #toast.error   { background: var(--red); }
+    #toast.warning { background: var(--orange); }
+
+    /* Modal confirmation */
+    #modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.5); z-index: 150;
+      align-items: center; justify-content: center;
+    }
+    #modal-overlay.active { display: flex; }
+    .modal-box {
+      background: #fff; border-radius: 14px; padding: 28px;
+      max-width: 400px; width: 90%;
+      box-shadow: 0 20px 60px rgba(0,0,0,.3);
+    }
+    .modal-box h3 { font-size: 1.1rem; margin-bottom: 10px; }
+    .modal-box p  { font-size: .9rem; color: var(--muted); margin-bottom: 20px; }
+
+    /* Section tabs */
+    .section-tabs { display: flex; gap: 6px; margin-bottom: 18px; }
+    .section-tab {
+      padding: 7px 14px; border: 1px solid var(--border);
+      border-radius: 8px; background: #fff; cursor: pointer;
+      font-size: .85rem; font-weight: 600; color: var(--muted);
+    }
+    .section-tab.active { background: var(--blue); color: #fff; border-color: var(--blue); }
+
+    /* Import zone */
+    .drop-zone {
+      border: 2px dashed var(--border); border-radius: 10px;
+      padding: 30px; text-align: center; cursor: pointer;
+      transition: border-color .2s, background .2s;
+      margin-bottom: 12px;
+    }
+    .drop-zone:hover, .drop-zone.drag-over {
+      border-color: var(--blue); background: #eff6ff;
+    }
+    .drop-zone .icon { font-size: 2rem; margin-bottom: 8px; }
+    .drop-zone p { font-size: .85rem; color: var(--muted); }
+    .drop-zone strong { color: var(--blue); }
+    #file-input { display: none; }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .sidebar { display: none; }
+      .main-content { padding: 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══ LOGIN ══════════════════════════════════════════════════════════════ -->
+<div id="login-screen">
+  <div class="login-box">
+    <h1>🏔 Trail Timing</h1>
+    <p>Espace administrateur</p>
+    <input type="password" id="login-password" placeholder="Mot de passe admin" />
+    <div id="login-error" style="color:var(--red);font-size:.82rem;margin-bottom:8px;display:none"></div>
+    <button class="btn btn-blue" style="width:100%;padding:12px;font-size:1rem" id="btn-login">
+      Connexion
+    </button>
+  </div>
+</div>
+
+<!-- ══ ADMIN ══════════════════════════════════════════════════════════════ -->
+<div id="admin-screen">
+  <div class="admin-layout">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-logo">🏔 Trail<br><span>Administration</span></div>
+      <nav>
+        <div class="nav-item active" data-page="dashboard"><span class="nav-icon">📊</span> Tableau de bord</div>
+        <div class="nav-item" data-page="courses"><span class="nav-icon">🏁</span> Courses</div>
+        <div class="nav-item" data-page="import"><span class="nav-icon">📋</span> Coureurs</div>
+        <div class="nav-item" data-page="arrivees"><span class="nav-icon">⏱</span> Arrivées</div>
+        <div class="nav-item" data-page="export"><span class="nav-icon">📥</span> Export</div>
+      </nav>
+      <div class="sidebar-footer">
+        <div id="admin-user" style="margin-bottom:6px">Connecté</div>
+        <button class="btn btn-ghost" style="width:100%;font-size:.8rem;padding:7px" id="btn-logout">Déconnexion</button>
+      </div>
+    </aside>
+
+    <!-- Content -->
+    <div class="main-content">
+
+      <!-- ── DASHBOARD ── -->
+      <div class="page active" id="page-dashboard">
+        <div class="page-title">📊 Tableau de bord</div>
+        <div class="stats-grid" id="stats-grid">
+          <div class="stat-card green"><div class="val" id="st-total">—</div><div class="lbl">Arrivées totales</div></div>
+          <div class="stat-card blue"><div class="val" id="st-inscrits">—</div><div class="lbl">Inscrits</div></div>
+          <div class="stat-card orange"><div class="val" id="st-encours">—</div><div class="lbl">Course(s) en cours</div></div>
+          <div class="stat-card purple"><div class="val" id="st-terminees">—</div><div class="lbl">Course(s) terminées</div></div>
+        </div>
+        <div class="card">
+          <div class="card-title">État des courses</div>
+          <div id="dashboard-courses"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Accès rapides</div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <a href="/classement.html" target="_blank" class="btn btn-blue">🔗 Classement public</a>
+            <a href="/benevole.html"   target="_blank" class="btn btn-green">🔗 Interface bénévole</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── COURSES ── -->
+      <div class="page" id="page-courses">
+        <div class="page-title">
+          🏁 Gestion des courses
+          <button class="btn btn-green" style="margin-left:auto;font-size:.85rem" id="btn-new-course">➕ Nouvelle course</button>
+        </div>
+        <div class="courses-grid" id="courses-grid"></div>
+
+        <!-- Démarrage avec heure personnalisée -->
+        <div class="card">
+          <div class="card-title">Démarrage manuel avec heure décalée</div>
+          <p style="font-size:.85rem;color:var(--muted);margin-bottom:14px">
+            Utile si le départ est donné à une heure précise mais la saisie commence plus tard.
+          </p>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Course</label>
+              <select id="manual-course-sel"></select>
+            </div>
+            <div class="form-group">
+              <label>Heure de départ réelle</label>
+              <input type="datetime-local" id="manual-heure" />
+            </div>
+          </div>
+          <button class="btn btn-orange" id="btn-manual-start">🕐 Démarrer avec cette heure</button>
+        </div>
+      </div>
+
+      <!-- ── COUREURS ── -->
+      <div class="page" id="page-import">
+        <div class="page-title">📋 Gestion des coureurs</div>
+
+        <div class="section-tabs">
+          <div class="section-tab active" data-tab="import-tab">Import CSV</div>
+          <div class="section-tab" data-tab="list-tab">Liste coureurs</div>
+          <div class="section-tab" data-tab="manual-tab">Ajout manuel</div>
+        </div>
+
+        <!-- Import CSV -->
+        <div id="import-tab" class="tab-content">
+          <div class="card">
+            <div class="card-title">Import fichier CSV</div>
+            <p style="font-size:.85rem;color:var(--muted);margin-bottom:14px">
+              Format : <code>dossard,nom,prenom,sexe,categorie,club</code> (1ère ligne = en-tête, virgule comme séparateur)
+            </p>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Course cible</label>
+                <select id="import-course-sel"></select>
+              </div>
+            </div>
+            <div class="drop-zone" id="drop-zone">
+              <div class="icon">📂</div>
+              <p><strong>Glissez un fichier CSV</strong> ou cliquez pour parcourir</p>
+              <p style="margin-top:4px;font-size:.78rem">Exemple : 101,DUPONT,Jean,M,SE,Trail Club 34</p>
+            </div>
+            <input type="file" id="file-input" accept=".csv,text/csv" />
+            <div id="csv-preview" style="display:none">
+              <div style="font-size:.85rem;color:var(--muted);margin-bottom:8px" id="csv-info"></div>
+              <textarea id="csv-content" rows="8"></textarea>
+              <div style="margin-top:10px;display:flex;gap:8px">
+                <button class="btn btn-green" id="btn-import-csv">📥 Importer</button>
+                <button class="btn btn-ghost"  id="btn-cancel-csv">Annuler</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">Exemple de fichier CSV</div>
+            <pre style="font-size:.8rem;background:#f8fafc;padding:12px;border-radius:8px;overflow-x:auto">dossard,nom,prenom,sexe,categorie,club
+101,DUPONT,Jean,M,SE,Trail Club 34
+102,MARTIN,Sophie,F,V1,Les Pieds Agiles
+103,BERNARD,Pierre,M,V2,
+104,LEROY,Marie,F,JU,Athlétisme Montpellier</pre>
+            <button class="btn btn-ghost" id="btn-download-template" style="margin-top:10px">
+              ⬇ Télécharger le modèle
+            </button>
+          </div>
+        </div>
+
+        <!-- Liste coureurs -->
+        <div id="list-tab" class="tab-content" style="display:none">
+          <div class="card">
+            <div class="card-title">Liste des inscrits</div>
+            <div class="form-row" style="margin-bottom:14px">
+              <div class="form-group">
+                <label>Course</label>
+                <select id="list-course-sel"></select>
+              </div>
+              <div class="form-group" style="justify-content:flex-end">
+                <button class="btn btn-blue" id="btn-load-list">Charger</button>
+              </div>
+            </div>
+            <div id="coureurs-count" style="font-size:.85rem;color:var(--muted);margin-bottom:10px"></div>
+            <div class="table-wrap">
+              <table id="coureurs-table">
+                <thead>
+                  <tr>
+                    <th>#</th><th>Nom</th><th>Prénom</th><th>Sexe</th><th>Catég.</th><th>Club</th><th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="coureurs-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Ajout manuel -->
+        <div id="manual-tab" class="tab-content" style="display:none">
+          <div class="card">
+            <div class="card-title">Ajouter un coureur manuellement</div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Course</label>
+                <select id="manual-coureur-course"></select>
+              </div>
+              <div class="form-group">
+                <label>Dossard</label>
+                <input type="number" id="mc-dossard" placeholder="101" min="1" />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Nom</label>
+                <input type="text" id="mc-nom" placeholder="DUPONT" />
+              </div>
+              <div class="form-group">
+                <label>Prénom</label>
+                <input type="text" id="mc-prenom" placeholder="Jean" />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Sexe</label>
+                <select id="mc-sexe">
+                  <option value="M">M — Homme</option>
+                  <option value="F">F — Femme</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Catégorie</label>
+                <select id="mc-categorie">
+                  <option value="ES">ES — Espoir</option>
+                  <option value="SE" selected>SE — Senior</option>
+                  <option value="V1">V1 — Vétéran 1</option>
+                  <option value="V2">V2 — Vétéran 2</option>
+                  <option value="V3">V3 — Vétéran 3</option>
+                  <option value="JU">JU — Junior</option>
+                  <option value="CA">CA — Cadet</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Club</label>
+                <input type="text" id="mc-club" placeholder="(optionnel)" />
+              </div>
+            </div>
+            <button class="btn btn-green" id="btn-add-coureur">➕ Ajouter</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── ARRIVÉES ── -->
+      <div class="page" id="page-arrivees">
+        <div class="page-title">⏱ Gestion des arrivées</div>
+        <div class="card">
+          <div class="card-title">Saisie manuelle d'arrivée (correction admin)</div>
+          <p style="font-size:.85rem;color:var(--muted);margin-bottom:14px">
+            Permet d'enregistrer une arrivée avec une heure précise, ou de corriger une heure.
+          </p>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Course</label>
+              <select id="arr-course-sel"></select>
+            </div>
+            <div class="form-group">
+              <label>Dossard</label>
+              <input type="number" id="arr-dossard" placeholder="Ex : 142" min="1" />
+            </div>
+            <div class="form-group">
+              <label>Heure d'arrivée (laisser vide = maintenant)</label>
+              <input type="datetime-local" id="arr-heure" />
+            </div>
+          </div>
+          <button class="btn btn-orange" id="btn-add-arrivee">⏱ Enregistrer arrivée</button>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Liste des arrivées enregistrées</div>
+          <div class="form-row" style="margin-bottom:14px">
+            <div class="form-group">
+              <label>Course</label>
+              <select id="arr-list-course"></select>
+            </div>
+            <div class="form-group" style="justify-content:flex-end">
+              <button class="btn btn-blue" id="btn-load-arrivees">Charger</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Pos.</th><th>#</th><th>Coureur</th><th>Heure arrivée</th><th>Temps</th><th>Saisi par</th><th>Action</th></tr>
+              </thead>
+              <tbody id="arrivees-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── EXPORT ── -->
+      <div class="page" id="page-export">
+        <div class="page-title">📥 Export des résultats</div>
+        <div class="card">
+          <div class="card-title">Télécharger le classement CSV</div>
+          <p style="font-size:.85rem;color:var(--muted);margin-bottom:16px">
+            Le fichier CSV contient : position, dossard, nom, prénom, sexe, catégorie, club, temps, heure d'arrivée.
+          </p>
+          <div id="export-courses"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Générer les QR codes dossards</div>
+          <p style="font-size:.85rem;color:var(--muted);margin-bottom:14px">
+            Génère une page HTML imprimable avec un QR code par dossard. Chaque QR encode le numéro de dossard.
+          </p>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Course</label>
+              <select id="qr-course-sel"></select>
+            </div>
+            <div class="form-group">
+              <label>Dossards (plage)</label>
+              <div style="display:flex;gap:8px">
+                <input type="number" id="qr-from" placeholder="De" min="1" style="width:80px" />
+                <input type="number" id="qr-to"   placeholder="À"  min="1" style="width:80px" />
+              </div>
+            </div>
+          </div>
+          <button class="btn btn-purple" id="btn-gen-qr">🖨 Générer les QR codes</button>
+        </div>
+      </div>
+
+    </div><!-- /main-content -->
+  </div><!-- /admin-layout -->
+</div><!-- /admin-screen -->
+
+<!-- Modal confirmation -->
+<div id="modal-overlay">
+  <div class="modal-box">
+    <h3 id="modal-title">Confirmer</h3>
+    <p  id="modal-body">Êtes-vous sûr ?</p>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn btn-ghost" id="modal-cancel">Annuler</button>
+      <button class="btn btn-red"   id="modal-confirm">Confirmer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal formulaire course (ajout / édition) -->
+<div id="modal-course-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:150;align-items:center;justify-content:center">
+  <div class="modal-box" style="max-width:440px">
+    <h3 id="modal-course-title">Nouvelle course</h3>
+    <div class="form-row" style="margin-top:16px">
+      <div class="form-group">
+        <label>Nom de la course</label>
+        <input type="text" id="mc-course-nom" placeholder="Ex : 5km, 18km Trail..." />
+      </div>
+      <div class="form-group" style="max-width:130px">
+        <label>Distance (km)</label>
+        <input type="number" id="mc-course-dist" placeholder="Ex : 18" min="0.1" step="0.1" />
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px">
+      <button class="btn btn-ghost" id="modal-course-cancel">Annuler</button>
+      <button class="btn btn-green" id="modal-course-save">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal formulaire coureur (édition) -->
+<div id="modal-coureur-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:150;align-items:center;justify-content:center">
+  <div class="modal-box" style="max-width:500px">
+    <h3>Modifier le coureur</h3>
+    <div class="form-row" style="margin-top:16px">
+      <div class="form-group"><label>Nom</label>
+        <input type="text" id="edit-coureur-nom" /></div>
+      <div class="form-group"><label>Prénom</label>
+        <input type="text" id="edit-coureur-prenom" /></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Sexe</label>
+        <select id="edit-coureur-sexe">
+          <option value="M">M — Homme</option>
+          <option value="F">F — Femme</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Catégorie</label>
+        <select id="edit-coureur-categorie">
+          <option value="ES">ES</option>
+          <option value="SE">SE</option>
+          <option value="V1">V1</option>
+          <option value="V2">V2</option>
+          <option value="V3">V3</option>
+          <option value="JU">JU</option>
+          <option value="CA">CA</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Club</label>
+        <input type="text" id="edit-coureur-club" /></div>
+    </div>
+    <input type="hidden" id="edit-coureur-dossard" />
+    <input type="hidden" id="edit-coureur-course-id" />
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px">
+      <button class="btn btn-ghost" id="modal-coureur-cancel">Annuler</button>
+      <button class="btn btn-green" id="modal-coureur-save">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<!-- QR code lib -->
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+
+<script>
+// ─── État ─────────────────────────────────────────────────────────────────────
+let adminToken = null;
+let courses    = [];
+let arriveesCourse = null; // course actuellement affichée dans arrivées
+
+// ─── DOM ─────────────────────────────────────────────────────────────────────
+const loginScreen  = document.getElementById('login-screen');
+const adminScreen  = document.getElementById('admin-screen');
+const loginPwd     = document.getElementById('login-password');
+const loginError   = document.getElementById('login-error');
+const btnLogin     = document.getElementById('btn-login');
+const btnLogout    = document.getElementById('btn-logout');
+const toastEl      = document.getElementById('toast');
+
+// ─── Toast ────────────────────────────────────────────────────────────────────
+let toastTimer;
+function showToast(msg, type = 'success', ms = 3500) {
+  clearTimeout(toastTimer);
+  toastEl.textContent = msg;
+  toastEl.className = `show ${type}`;
+  toastTimer = setTimeout(() => toastEl.className = '', ms);
+}
+
+// ─── Modal ────────────────────────────────────────────────────────────────────
+function confirm(title, body) {
+  return new Promise(resolve => {
+    const overlay = document.getElementById('modal-overlay');
+    document.getElementById('modal-title').textContent = title;
+    document.getElementById('modal-body').textContent  = body;
+    overlay.classList.add('active');
+    document.getElementById('modal-confirm').onclick = () => { overlay.classList.remove('active'); resolve(true); };
+    document.getElementById('modal-cancel').onclick  = () => { overlay.classList.remove('active'); resolve(false); };
+  });
+}
+
+// ─── API helper ───────────────────────────────────────────────────────────────
+async function api(method, path, body) {
+  const opts = {
+    method,
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminToken}` },
+  };
+  if (body !== undefined) opts.body = JSON.stringify(body);
+  const res = await fetch(path, opts);
+  return { ok: res.ok, status: res.status, data: await res.json().catch(() => ({})) };
+}
+
+async function apiRaw(path) {
+  const res = await fetch(path, { headers: { 'Authorization': `Bearer ${adminToken}` } });
+  return res;
+}
+
+// ─── Login ────────────────────────────────────────────────────────────────────
+btnLogin.addEventListener('click', login);
+loginPwd.addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
+
+async function login() {
+  const password = loginPwd.value.trim();
+  if (!password) return;
+  btnLogin.disabled = true;
+  btnLogin.textContent = 'Connexion…';
+
+  try {
+    const { ok, data } = await api('POST', '/api/admin/login', { password });
+    if (ok && data.token) {
+      adminToken = data.token;
+      localStorage.setItem('trail_admin_token', adminToken);
+      loginScreen.style.display = 'none';
+      adminScreen.style.display = 'block';
+      await initAdmin();
+    } else {
+      loginError.textContent = data.error || 'Mot de passe incorrect';
+      loginError.style.display = 'block';
+    }
+  } catch {
+    loginError.textContent = 'Erreur réseau';
+    loginError.style.display = 'block';
+  } finally {
+    btnLogin.disabled = false;
+    btnLogin.textContent = 'Connexion';
+  }
+}
+
+btnLogout.addEventListener('click', () => {
+  adminToken = null;
+  localStorage.removeItem('trail_admin_token');
+  adminScreen.style.display = 'none';
+  loginScreen.style.display = 'flex';
+  loginPwd.value = '';
+});
+
+// ─── Navigation ───────────────────────────────────────────────────────────────
+document.querySelectorAll('.nav-item').forEach(item => {
+  item.addEventListener('click', () => {
+    document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    item.classList.add('active');
+    document.getElementById(`page-${item.dataset.page}`).classList.add('active');
+  });
+});
+
+// Section tabs (Import/Liste/Manuel)
+document.querySelectorAll('.section-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    const parent = tab.parentElement;
+    parent.querySelectorAll('.section-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    // Masquer tous les tab-content du parent de tab
+    const page = tab.closest('.page');
+    page.querySelectorAll('.tab-content').forEach(tc => tc.style.display = 'none');
+    document.getElementById(tab.dataset.tab).style.display = 'block';
+  });
+});
+
+// ─── Init admin ───────────────────────────────────────────────────────────────
+async function initAdmin() {
+  await loadCourses();
+  await loadStats();
+  populateSelects();
+}
+
+async function loadCourses() {
+  const { ok, data } = await api('GET', '/api/courses');
+  if (ok) courses = data;
+}
+
+async function loadStats() {
+  const { ok, data } = await api('GET', '/api/admin/stats');
+  if (!ok) return;
+
+  let totalArrivees = 0, totalInscrits = 0, nbEnCours = 0, nbTerminees = 0;
+  data.forEach(c => {
+    totalArrivees += c.nb_arrives;
+    totalInscrits += c.nb_inscrits;
+    if (c.statut === 'en_cours')  nbEnCours++;
+    if (c.statut === 'terminee')  nbTerminees++;
+  });
+
+  document.getElementById('st-total').textContent    = totalArrivees;
+  document.getElementById('st-inscrits').textContent = totalInscrits;
+  document.getElementById('st-encours').textContent  = nbEnCours;
+  document.getElementById('st-terminees').textContent= nbTerminees;
+
+  // Dashboard courses
+  const dash = document.getElementById('dashboard-courses');
+  dash.innerHTML = data.map(c => {
+    const pct = c.nb_inscrits > 0 ? Math.round(c.nb_arrives / c.nb_inscrits * 100) : 0;
+    const badgeClass = { attente: 'badge-orange', en_cours: 'badge-green', terminee: 'badge-blue' }[c.statut];
+    const label = { attente: '⏳ En attente', en_cours: '🟢 En cours', terminee: '🏁 Terminée' }[c.statut];
+    return `<div style="display:flex;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid var(--border)">
+      <div style="font-weight:700;width:60px">${c.nom}</div>
+      <span class="badge ${badgeClass}">${label}</span>
+      <div style="flex:1">
+        <div style="background:var(--border);border-radius:99px;height:6px;overflow:hidden">
+          <div style="background:var(--green);height:100%;width:${pct}%;transition:width .5s"></div>
+        </div>
+      </div>
+      <div style="font-size:.82rem;color:var(--muted);white-space:nowrap">
+        ${c.nb_arrives} / ${c.nb_inscrits || '?'} (${pct}%)
+      </div>
+    </div>`;
+  }).join('');
+
+  renderCoursesGrid(data);
+}
+
+function renderCoursesGrid(data) {
+  const grid = document.getElementById('courses-grid');
+  grid.innerHTML = data.map(c => {
+    const badgeClass = { attente: 'badge-orange', en_cours: 'badge-green', terminee: 'badge-blue' }[c.statut];
+    const label = { attente: '⏳ En attente', en_cours: '🟢 En cours', terminee: '🏁 Terminée' }[c.statut];
+    const depart = c.heure_depart ? new Date(c.heure_depart).toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit',second:'2-digit'}) : '—';
+
+    let btns = '';
+    if (c.statut === 'attente') {
+      btns = `<button class="btn btn-green" onclick="startCourse(${c.id})">▶ Démarrer</button>`;
+    } else if (c.statut === 'en_cours') {
+      btns = `<button class="btn btn-red" onclick="stopCourse(${c.id})">⏹ Clôturer</button>`;
+    }
+    btns += ` <button class="btn btn-ghost" onclick="resetCourse(${c.id})" title="Remet en attente et efface les arrivées">🔄 Reset</button>`;
+    btns += ` <button class="btn btn-blue"  onclick="openEditCourse(${c.id},'${c.nom.replace(/'/g,"\\'")}',${c.distance_km})">✏️ Modifier</button>`;
+    if (c.statut === 'attente') {
+      btns += ` <button class="btn btn-red" onclick="doDeleteCourse(${c.id},'${c.nom.replace(/'/g,"\\'")}')">🗑 Supprimer</button>`;
+    }
+
+    return `<div class="course-card">
+      <div class="c-name">${c.nom}</div>
+      <div class="c-meta">Départ : ${depart}</div>
+      <span class="badge ${badgeClass}">${label}</span>
+      <div class="c-stats">
+        <div class="c-stat"><span class="n">${c.nb_arrives}</span><span class="lb">Arrivées</span></div>
+        <div class="c-stat"><span class="n">${c.nb_inscrits || '?'}</span><span class="lb">Inscrits</span></div>
+      </div>
+      <div class="btn-row">${btns}</div>
+    </div>`;
+  }).join('');
+}
+
+function populateSelects() {
+  const selIds = [
+    'import-course-sel', 'list-course-sel', 'manual-coureur-course',
+    'arr-course-sel', 'arr-list-course', 'qr-course-sel', 'manual-course-sel',
+  ];
+  selIds.forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    sel.innerHTML = courses.map(c => `<option value="${c.id}">${c.nom}</option>`).join('');
+  });
+
+  // Export courses
+  const exportDiv = document.getElementById('export-courses');
+  exportDiv.innerHTML = courses.map(c => `
+    <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)">
+      <div style="font-weight:700;width:60px">${c.nom}</div>
+      <div style="flex:1;font-size:.85rem;color:var(--muted)">${c.nb_arrives} arrivées enregistrées</div>
+      <button class="btn btn-green" onclick="exportCSV(${c.id},'${c.nom}')">⬇ CSV ${c.nom}</button>
+    </div>
+  `).join('');
+}
+
+// ─── Courses : start / stop / reset ──────────────────────────────────────────
+async function startCourse(id) {
+  const ok = await confirm('Démarrer la course ?', 'L\'heure de départ sera enregistrée maintenant.');
+  if (!ok) return;
+  const res = await api('POST', `/api/admin/course/${id}/start`, {});
+  if (res.ok) {
+    showToast('✅ Course démarrée !', 'success');
+    await loadCourses(); await loadStats(); populateSelects();
+  } else {
+    showToast(`❌ ${res.data.error}`, 'error');
+  }
+}
+
+async function stopCourse(id) {
+  const ok = await confirm('Clôturer la course ?', 'Plus aucune arrivée ne pourra être enregistrée.');
+  if (!ok) return;
+  const res = await api('POST', `/api/admin/course/${id}/stop`, {});
+  if (res.ok) {
+    showToast('🏁 Course clôturée', 'success');
+    await loadCourses(); await loadStats(); populateSelects();
+  } else {
+    showToast(`❌ ${res.data.error}`, 'error');
+  }
+}
+
+async function resetCourse(id) {
+  const ok = await confirm('⚠️ Remettre à zéro ?', 'Toutes les arrivées de cette course seront supprimées. Cette action est irréversible.');
+  if (!ok) return;
+  const res = await api('POST', `/api/admin/course/${id}/reset`, {});
+  if (res.ok) {
+    showToast('🔄 Course remise à zéro', 'warning');
+    await loadCourses(); await loadStats(); populateSelects();
+  } else {
+    showToast(`❌ ${res.data.error}`, 'error');
+  }
+}
+
+// Démarrage manuel avec heure
+document.getElementById('btn-manual-start').addEventListener('click', async () => {
+  const courseId = document.getElementById('manual-course-sel').value;
+  const heure    = document.getElementById('manual-heure').value;
+  if (!heure) { showToast('Sélectionnez une heure', 'warning'); return; }
+
+  const heureISO = new Date(heure).toISOString();
+  const ok = await confirm('Démarrer avec heure décalée ?', `Heure de départ : ${new Date(heure).toLocaleString('fr-FR')}`);
+  if (!ok) return;
+
+  const res = await api('POST', `/api/admin/course/${courseId}/start`, { heure_depart: heureISO });
+  if (res.ok) {
+    showToast('✅ Course démarrée', 'success');
+    await loadCourses(); await loadStats(); populateSelects();
+  } else {
+    showToast(`❌ ${res.data.error}`, 'error');
+  }
+});
+
+// ─── Import CSV ───────────────────────────────────────────────────────────────
+const dropZone   = document.getElementById('drop-zone');
+const fileInput  = document.getElementById('file-input');
+const csvPreview = document.getElementById('csv-preview');
+const csvContent = document.getElementById('csv-content');
+const csvInfo    = document.getElementById('csv-info');
+
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag-over');
+  if (e.dataTransfer.files[0]) loadCSVFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) loadCSVFile(fileInput.files[0]); });
+
+function loadCSVFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const text = e.target.result;
+    const lines = text.trim().split('\n').length - 1; // -1 pour header
+    csvInfo.textContent = `Fichier : ${file.name} — ${lines} coureurs détectés`;
+    csvContent.value = text;
+    csvPreview.style.display = 'block';
+    dropZone.style.display = 'none';
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
+document.getElementById('btn-cancel-csv').addEventListener('click', () => {
+  csvPreview.style.display = 'none';
+  dropZone.style.display = 'block';
+  fileInput.value = '';
+});
+
+document.getElementById('btn-import-csv').addEventListener('click', async () => {
+  const courseId = document.getElementById('import-course-sel').value;
+  const csv      = csvContent.value.trim();
+  if (!csv) return showToast('CSV vide', 'warning');
+
+  const btn = document.getElementById('btn-import-csv');
+  btn.disabled = true; btn.textContent = 'Import en cours…';
+
+  try {
+    const res = await fetch(`/api/admin/coureurs/import?course_id=${courseId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/csv', 'Authorization': `Bearer ${adminToken}` },
+      body: csv,
+    });
+    const data = await res.json();
+    if (res.ok) {
+      showToast(`✅ ${data.importes} coureurs importés (${data.erreurs} erreurs)`, 'success');
+      csvPreview.style.display = 'none';
+      dropZone.style.display = 'block';
+      fileInput.value = '';
+      await loadStats(); populateSelects();
+    } else {
+      showToast(`❌ ${data.error}`, 'error');
+    }
+  } finally {
+    btn.disabled = false; btn.textContent = '📥 Importer';
+  }
+});
+
+// Télécharger modèle CSV
+document.getElementById('btn-download-template').addEventListener('click', () => {
+  const csv = 'dossard,nom,prenom,sexe,categorie,club\n101,DUPONT,Jean,M,SE,Trail Club 34\n102,MARTIN,Sophie,F,V1,Les Pieds Agiles\n';
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = 'modele_coureurs.csv';
+  a.click();
+});
+
+// ─── Liste coureurs ───────────────────────────────────────────────────────────
+document.getElementById('btn-load-list').addEventListener('click', loadCoureursList);
+
+async function loadCoureursList() {
+  const courseId = document.getElementById('list-course-sel').value;
+  const { ok, data } = await api('GET', `/api/admin/coureurs/${courseId}`);
+  if (!ok) return showToast('Erreur chargement', 'error');
+
+  document.getElementById('coureurs-count').textContent = `${data.length} coureur(s) inscrit(s)`;
+  const tbody = document.getElementById('coureurs-body');
+  tbody.innerHTML = data.length ? data.map(c =>
+    `<tr>
+      <td><strong>${c.dossard}</strong></td>
+      <td>${escHtml(c.nom)}</td><td>${escHtml(c.prenom)}</td>
+      <td>${c.sexe}</td><td>${escHtml(c.categorie)}</td><td>${escHtml(c.club)}</td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-blue"  onclick="openEditCoureur(${courseId},${c.dossard},'${escJs(c.nom)}','${escJs(c.prenom)}','${c.sexe}','${c.categorie}','${escJs(c.club)}')">✏️</button>
+        <button class="btn btn-red"   onclick="doDeleteCoureur(${courseId},${c.dossard},'${escJs(c.nom)} ${escJs(c.prenom)}')">🗑</button>
+      </td>
+    </tr>`
+  ).join('') : `<tr><td colspan="7" style="text-align:center;color:var(--muted)">Aucun coureur importé</td></tr>`;
+}
+
+// ─── Ajout manuel coureur ─────────────────────────────────────────────────────
+document.getElementById('btn-add-coureur').addEventListener('click', async () => {
+  const courseId  = document.getElementById('manual-coureur-course').value;
+  const dossard   = document.getElementById('mc-dossard').value;
+  const nom       = document.getElementById('mc-nom').value.trim().toUpperCase();
+  const prenom    = document.getElementById('mc-prenom').value.trim();
+  const sexe      = document.getElementById('mc-sexe').value;
+  const categorie = document.getElementById('mc-categorie').value;
+  const club      = document.getElementById('mc-club').value.trim();
+
+  if (!dossard || !nom || !prenom) return showToast('Dossard, nom et prénom requis', 'warning');
+
+  const csv = `dossard,nom,prenom,sexe,categorie,club\n${dossard},${nom},${prenom},${sexe},${categorie},${club}`;
+  const res = await fetch(`/api/admin/coureurs/import?course_id=${courseId}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/csv', 'Authorization': `Bearer ${adminToken}` },
+    body: csv,
+  });
+  const data = await res.json();
+  if (res.ok && data.importes > 0) {
+    showToast(`✅ ${nom} ${prenom} (#${dossard}) ajouté`, 'success');
+    ['mc-dossard','mc-nom','mc-prenom','mc-club'].forEach(id => document.getElementById(id).value = '');
+    await loadStats(); populateSelects();
+  } else {
+    showToast(`❌ ${data.error || 'Erreur'}`, 'error');
+  }
+});
+
+// ─── Arrivée admin ────────────────────────────────────────────────────────────
+document.getElementById('btn-add-arrivee').addEventListener('click', async () => {
+  const courseId = document.getElementById('arr-course-sel').value;
+  const dossard  = parseInt(document.getElementById('arr-dossard').value, 10);
+  const heureVal = document.getElementById('arr-heure').value;
+
+  if (!dossard || dossard < 1) return showToast('Numéro de dossard invalide', 'warning');
+
+  // On passe par le BENEVOLAT_TOKEN … mais en admin on utilise l'admin token
+  // L'admin peut poster directement via l'API arrivée avec token admin
+  // On utilise le worker qui accepte le token admin comme bénévole aussi — on adapte
+  // En réalité on appelle /api/arrivee avec un token admin en guise de benevole_token
+  // Pour ne pas complexifier, on ajoute l'heure manuellement via un endpoint dédié
+  // Ici on bricole : on passe l'heure via un champ custom
+  const body = {
+    dossard,
+    course_id: Number(courseId),
+    benevole_id: 'admin',
+    heure_forcee: heureVal ? new Date(heureVal).toISOString() : undefined,
+  };
+
+  const res = await fetch('/api/admin/arrivee-manuelle', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminToken}` },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (res.ok) {
+    showToast(`✅ Arrivée #${dossard} enregistrée`, 'success');
+    document.getElementById('arr-dossard').value = '';
+    document.getElementById('arr-heure').value = '';
+    if (arriveesCourse === Number(courseId)) await loadArriveesList();
+  } else {
+    showToast(`❌ ${data.error}`, 'error');
+  }
+});
+
+document.getElementById('btn-load-arrivees').addEventListener('click', loadArriveesList);
+
+async function loadArriveesList() {
+  const courseId = document.getElementById('arr-list-course').value;
+  arriveesCourse = Number(courseId);
+  const res = await fetch(`/api/classement/${courseId}`, { headers: { 'Authorization': `Bearer ${adminToken}` } });
+  const data = await res.json();
+  const tbody = document.getElementById('arrivees-body');
+
+  if (!data.classement?.length) {
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--muted)">Aucune arrivée</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = data.classement.map(r =>
+    `<tr>
+      <td><strong>${r.position}</strong></td>
+      <td>${r.dossard}</td>
+      <td>${escHtml(r.prenom)} ${escHtml(r.nom)}</td>
+      <td style="font-family:monospace">${new Date(r.heure_arrivee).toLocaleTimeString('fr-FR')}</td>
+      <td style="font-family:monospace;color:var(--blue)">${r.temps_brut}</td>
+      <td style="color:var(--muted);font-size:.8rem">${escHtml(r.saisie_par || '')}</td>
+      <td><button class="btn btn-red" onclick="supprimerArrivee(${r.id_arrivee}, ${r.dossard})">🗑</button></td>
+    </tr>`
+  ).join('');
+}
+
+async function supprimerArrivee(id, dossard) {
+  const ok = await confirm('Supprimer cette arrivée ?', `Dossard #${dossard} sera retiré du classement.`);
+  if (!ok) return;
+  const res = await api('DELETE', `/api/admin/arrivee/${id}`);
+  if (res.ok) {
+    showToast('🗑 Arrivée supprimée', 'warning');
+    await loadArriveesList();
+    await loadStats();
+  } else {
+    showToast(`❌ ${res.data.error}`, 'error');
+  }
+}
+
+// ─── Export CSV ───────────────────────────────────────────────────────────────
+async function exportCSV(courseId, nom) {
+  const res = await apiRaw(`/api/admin/export/${courseId}`);
+  if (!res.ok) return showToast('Erreur export', 'error');
+  const blob = await res.blob();
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  a.download = `classement_${nom}_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast(`✅ Export ${nom} téléchargé`, 'success');
+}
+
+// ─── QR Codes ────────────────────────────────────────────────────────────────
+document.getElementById('btn-gen-qr').addEventListener('click', async () => {
+  const courseId  = document.getElementById('qr-course-sel').value;
+  const from      = parseInt(document.getElementById('qr-from').value, 10) || 1;
+  const to        = parseInt(document.getElementById('qr-to').value, 10)   || 0;
+  const courseNom = courses.find(c => c.id === Number(courseId))?.nom ?? '';
+
+  if (!to || to < from) return showToast('Plage de dossards invalide', 'warning');
+  if (to - from > 500) return showToast('Maximum 500 QR codes à la fois', 'warning');
+
+  // Ouvrir une nouvelle fenêtre avec les QR codes imprimables
+  const win = window.open('', '_blank');
+  win.document.write(`<!DOCTYPE html><html><head>
+    <meta charset="UTF-8">
+    <title>QR Codes — ${courseNom}</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { font-family: sans-serif; background: #fff; }
+      .grid { display: flex; flex-wrap: wrap; gap: 10px; padding: 20px; }
+      .qr-card {
+        border: 2px solid #000; border-radius: 8px; padding: 10px;
+        text-align: center; width: 110px; page-break-inside: avoid;
+      }
+      .qr-card canvas { display: block; margin: 0 auto; }
+      .dossard-num { font-size: 1.4rem; font-weight: 900; margin-top: 6px; }
+      .course-name { font-size: .65rem; color: #555; margin-top: 2px; }
+      @media print {
+        .no-print { display: none; }
+        body { padding: 0; }
+        .grid { gap: 6px; padding: 10px; }
+      }
+    </style>
+  </head><body>
+    <div class="no-print" style="padding:14px;background:#f1f5f9;display:flex;gap:10px;align-items:center">
+      <strong>QR Codes — ${courseNom} (dossards ${from} à ${to})</strong>
+      <button onclick="window.print()" style="padding:8px 16px;background:#16a34a;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600">🖨 Imprimer</button>
+    </div>
+    <div class="grid" id="qr-grid"></div>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"><\/script>
+    <script>
+      const grid = document.getElementById('qr-grid');
+      for (let d = ${from}; d <= ${to}; d++) {
+        const card = document.createElement('div');
+        card.className = 'qr-card';
+        const canvas = document.createElement('canvas');
+        card.appendChild(canvas);
+        const num = document.createElement('div');
+        num.className = 'dossard-num'; num.textContent = d;
+        card.appendChild(num);
+        const cn = document.createElement('div');
+        cn.className = 'course-name'; cn.textContent = '${courseNom}';
+        card.appendChild(cn);
+        grid.appendChild(card);
+        QRCode.toCanvas(canvas, String(d), { width: 80, margin: 1, errorCorrectionLevel: 'M' });
+      }
+    <\/script>
+  </body></html>`);
+  win.document.close();
+});
+
+// ─── Restauration session ─────────────────────────────────────────────────────
+(async function restoreSession() {
+  const saved = localStorage.getItem('trail_admin_token');
+  if (saved) {
+    adminToken = saved;
+    // Vérifier que le token est encore valide
+    const res = await api('GET', '/api/admin/stats');
+    if (res.ok) {
+      loginScreen.style.display = 'none';
+      adminScreen.style.display = 'block';
+      await initAdmin();
+      return;
+    }
+    localStorage.removeItem('trail_admin_token');
+    adminToken = null;
+  }
+})();
+
+// ─── Utils ────────────────────────────────────────────────────────────────────
+function escHtml(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// Échappe pour injection dans attribut onclick (guillemets simples)
+function escJs(s) {
+  return String(s ?? '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+}
+
+// ─── CRUD Courses ─────────────────────────────────────────────────────────────
+let editingCourseId = null;
+
+document.getElementById('btn-new-course').addEventListener('click', () => {
+  editingCourseId = null;
+  document.getElementById('modal-course-title').textContent = 'Nouvelle course';
+  document.getElementById('mc-course-nom').value  = '';
+  document.getElementById('mc-course-dist').value = '';
+  const overlay = document.getElementById('modal-course-overlay');
+  overlay.style.display = 'flex';
+  document.getElementById('mc-course-nom').focus();
+});
+
+function openEditCourse(id, nom, dist) {
+  editingCourseId = id;
+  document.getElementById('modal-course-title').textContent = 'Modifier la course';
+  document.getElementById('mc-course-nom').value  = nom;
+  document.getElementById('mc-course-dist').value = dist;
+  const overlay = document.getElementById('modal-course-overlay');
+  overlay.style.display = 'flex';
+  document.getElementById('mc-course-nom').focus();
+}
+
+document.getElementById('modal-course-cancel').addEventListener('click', () => {
+  document.getElementById('modal-course-overlay').style.display = 'none';
+});
+
+document.getElementById('modal-course-save').addEventListener('click', async () => {
+  const nom  = document.getElementById('mc-course-nom').value.trim();
+  const dist = parseFloat(document.getElementById('mc-course-dist').value);
+  if (!nom)         return showToast('Nom requis', 'warning');
+  if (!dist || dist <= 0) return showToast('Distance invalide', 'warning');
+
+  const btn = document.getElementById('modal-course-save');
+  btn.disabled = true;
+
+  let res;
+  if (editingCourseId) {
+    res = await api('PUT', `/api/admin/course/${editingCourseId}`, { nom, distance_km: dist });
+  } else {
+    res = await api('POST', '/api/admin/course', { nom, distance_km: dist });
+  }
+
+  btn.disabled = false;
+  if (res.ok) {
+    showToast(editingCourseId ? `✅ Course modifiée` : `✅ Course "${nom}" créée`, 'success');
+    document.getElementById('modal-course-overlay').style.display = 'none';
+    await loadCourses(); await loadStats(); populateSelects();
+  } else {
+    showToast(`❌ ${res.data.error}`, 'error');
+  }
+});
+
+async function doDeleteCourse(id, nom) {
+  const ok = await confirm('Supprimer cette course ?', `"${nom}" et tous ses coureurs seront supprimés. Action irréversible.`);
+  if (!ok) return;
+  const res = await api('DELETE', `/api/admin/course/${id}`);
+  if (res.ok) {
+    showToast(`🗑 Course "${nom}" supprimée`, 'warning');
+    await loadCourses(); await loadStats(); populateSelects();
+  } else {
+    showToast(`❌ ${res.data.error}`, 'error');
+  }
+}
+
+// ─── CRUD Coureurs ────────────────────────────────────────────────────────────
+document.getElementById('modal-coureur-cancel').addEventListener('click', () => {
+  document.getElementById('modal-coureur-overlay').style.display = 'none';
+});
+
+function openEditCoureur(courseId, dossard, nom, prenom, sexe, categorie, club) {
+  document.getElementById('edit-coureur-dossard').value   = dossard;
+  document.getElementById('edit-coureur-course-id').value = courseId;
+  document.getElementById('edit-coureur-nom').value       = nom;
+  document.getElementById('edit-coureur-prenom').value    = prenom;
+  document.getElementById('edit-coureur-sexe').value      = sexe;
+  document.getElementById('edit-coureur-categorie').value = categorie;
+  document.getElementById('edit-coureur-club').value      = club;
+  const overlay = document.getElementById('modal-coureur-overlay');
+  overlay.style.display = 'flex';
+  document.getElementById('edit-coureur-nom').focus();
+}
+
+document.getElementById('modal-coureur-save').addEventListener('click', async () => {
+  const courseId  = document.getElementById('edit-coureur-course-id').value;
+  const dossard   = document.getElementById('edit-coureur-dossard').value;
+  const nom       = document.getElementById('edit-coureur-nom').value.trim().toUpperCase();
+  const prenom    = document.getElementById('edit-coureur-prenom').value.trim();
+  const sexe      = document.getElementById('edit-coureur-sexe').value;
+  const categorie = document.getElementById('edit-coureur-categorie').value;
+  const club      = document.getElementById('edit-coureur-club').value.trim();
+
+  if (!nom || !prenom) return showToast('Nom et prénom requis', 'warning');
+
+  const btn = document.getElementById('modal-coureur-save');
+  btn.disabled = true;
+  const res = await api('PUT', `/api/admin/coureur/${courseId}/${dossard}`, { nom, prenom, sexe, categorie, club });
+  btn.disabled = false;
+
+  if (res.ok) {
+    showToast(`✅ ${nom} ${prenom} mis à jour`, 'success');
+    document.getElementById('modal-coureur-overlay').style.display = 'none';
+    await loadCoureursList();
+  } else {
+    showToast(`❌ ${res.data.error}`, 'error');
+  }
+});
+
+async function doDeleteCoureur(courseId, dossard, nomComplet) {
+  const ok = await confirm('Supprimer ce coureur ?', `#${dossard} — ${nomComplet} sera retiré de la liste.`);
+  if (!ok) return;
+  const res = await api('DELETE', `/api/admin/coureur/${courseId}/${dossard}`);
+  if (res.ok) {
+    showToast(`🗑 Coureur #${dossard} supprimé`, 'warning');
+    await loadCoureursList();
+    await loadStats();
+  } else {
+    showToast(`❌ ${res.data.error}`, 'error');
+  }
+}
+</script>
+</body>
+</html>
