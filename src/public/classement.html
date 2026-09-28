@@ -17,6 +17,7 @@
       --text:    #f1f5f9;
       --muted:   #94a3b8;
       --accent:  #22d3ee;
+      --gold:    #f59e0b;
     }
 
     body {
@@ -275,6 +276,37 @@
     .stat-item strong { color: var(--text); font-weight: 700; }
 
     /* ── Responsive ── */
+    /* ── Onglets années ── */
+    #annee-tabs {
+      display: flex;
+      gap: 6px;
+      padding: 12px 24px 0;
+      align-items: center;
+    }
+    .annee-label {
+      font-size: .72rem;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--muted);
+      margin-right: 4px;
+    }
+    .annee-btn {
+      padding: 5px 14px;
+      border: none;
+      background: var(--border);
+      color: var(--muted);
+      font-size: .82rem;
+      font-weight: 700;
+      border-radius: 99px;
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .annee-btn.active {
+      background: var(--gold, #f59e0b);
+      color: #fff;
+    }
+    .annee-btn:hover:not(.active) { background: #475569; color: #fff; }
+
     @media (max-width: 600px) {
       header { padding: 14px 16px; }
       #tabs  { padding: 12px 16px 0; }
@@ -298,6 +330,8 @@
   </div>
 </header>
 
+<!-- Onglets années -->
+<div id="annee-tabs"></div>
 <!-- Onglets courses -->
 <div id="tabs"></div>
 
@@ -339,6 +373,7 @@
         <th class="td-cat">Catég.</th>
         <th class="td-sexe">Sexe</th>
         <th class="td-temps">Temps</th>
+        <th class="td-temps">Moyenne</th>
       </tr>
     </thead>
     <tbody id="classement-body"></tbody>
@@ -348,6 +383,8 @@
 <script>
 // ─── État ─────────────────────────────────────────────────────────────────────
 const state = {
+  annees:       [],
+  selectedAnnee: null,
   courses:      [],
   courseId:     null,
   classement:   [],
@@ -360,6 +397,7 @@ const state = {
 };
 
 // ─── DOM ──────────────────────────────────────────────────────────────────────
+const anneTabsEl    = document.getElementById('annee-tabs');
 const tabsEl       = document.getElementById('tabs');
 const tableEl      = document.getElementById('classement-table');
 const bodyEl       = document.getElementById('classement-body');
@@ -376,10 +414,11 @@ const countdownEl  = document.getElementById('countdown');
 
 // ─── Init ────────────────────────────────────────────────────────────────────
 (async function init() {
-  // Lire courseId depuis l'URL (?course=2)
+  // Lire courseId et annee depuis l'URL (?course=2&annee=2025)
   const params = new URLSearchParams(location.search);
   if (params.get('course')) state.courseId = Number(params.get('course'));
-
+  if (params.get('annee'))  state.selectedAnnee = Number(params.get('annee'));
+  await loadAnnees();
   await loadCourses();
   await loadClassement();
   startCountdown();
@@ -401,20 +440,56 @@ const countdownEl  = document.getElementById('countdown');
 })();
 
 // ─── Courses ─────────────────────────────────────────────────────────────────
+async function loadAnnees() {
+  try {
+    const res = await fetch('/api/annees');
+    if (!res.ok) return;
+    state.annees = await res.json(); // trié décroissant [2026, 2025, ...]
+    if (!state.selectedAnnee && state.annees.length > 0) {
+      state.selectedAnnee = state.annees[0];
+    }
+  } catch { /* silencieux */ }
+  renderAnneeTabs();
+}
+
+function renderAnneeTabs() {
+  if (state.annees.length <= 1) {
+    anneTabsEl.innerHTML = '';
+    return;
+  }
+  anneTabsEl.innerHTML =
+    '<span class="annee-label">\u00c9dition\u00a0:</span>' +
+    state.annees.map(a =>
+      `<button class="annee-btn ${a === state.selectedAnnee ? 'active' : ''}" data-annee="${a}">${a}</button>`
+    ).join('');
+  anneTabsEl.querySelectorAll('.annee-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      state.selectedAnnee = Number(btn.dataset.annee);
+      state.courseId      = null;
+      state.prevDossards.clear();
+      renderAnneeTabs();
+      await loadCourses();
+      await loadClassement();
+      resetCountdown();
+    });
+  });
+}
+
 async function loadCourses() {
   try {
-    const res = await fetch('/api/courses');
+    const url = state.selectedAnnee
+      ? `/api/courses?annee=${state.selectedAnnee}`
+      : '/api/courses';
+    const res = await fetch(url);
     state.courses = await res.json();
   } catch { return; }
-
-  // Sélectionner la première course en cours par défaut
   if (!state.courseId) {
     const encours = state.courses.find(c => c.statut === 'en_cours');
     state.courseId = (encours || state.courses[0])?.id ?? 1;
   }
-
   renderTabs();
 }
+
 
 function renderTabs() {
   tabsEl.innerHTML = state.courses.map(c => {
@@ -554,6 +629,7 @@ function renderTable() {
       <td class="td-cat"><span class="cat-badge">${escHtml(r.categorie) || '—'}</span></td>
       <td class="td-sexe">${r.sexe === 'F' ? '♀' : '♂'}</td>
       <td class="td-temps">${r.temps_brut}</td>
+      <td class="td-temps" style="color:var(--muted);font-size:.85rem">${r.vitesse_moy ?? '—'}</td>
     </tr>`;
   }).join('');
 
@@ -631,6 +707,7 @@ function ouvrirPDF() {
       <td>${escHtml(r.categorie)}</td>
       <td>${escHtml(r.club || '—')}</td>
       <td class="temps">${r.temps_brut}</td>
+      <td style="font-family:monospace;font-size:.85rem;color:#64748b;text-align:right">${r.vitesse_moy ?? '—'}</td>
     </tr>`;
   }).join('');
 
@@ -678,7 +755,7 @@ function ouvrirPDF() {
   </div>
   <table>
     <thead><tr>
-      <th>Pos.</th><th>#</th><th>Nom — Prénom</th><th>Sx</th><th>Cat.</th><th>Club</th><th>Temps</th>
+      <th>Pos.</th><th>#</th><th>Nom — Prénom</th><th>Sx</th><th>Cat.</th><th>Club</th><th>Temps</th><th>Moyenne</th>
     </tr></thead>
     <tbody>${lignesHtml}</tbody>
   </table>

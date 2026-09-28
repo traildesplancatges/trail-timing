@@ -292,6 +292,19 @@
         <div class="nav-item" data-page="arrivees"><span class="nav-icon">⏱</span> Arrivées</div>
         <div class="nav-item" data-page="export"><span class="nav-icon">📥</span> Export</div>
       </nav>
+      <!-- Sélecteur d'édition (année) -->
+      <div style="padding:12px 16px;border-top:1px solid rgba(255,255,255,.1)">
+        <div style="font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:#64748b;margin-bottom:6px">Édition</div>
+        <select id="sel-annee"
+          style="width:100%;background:#0f172a;color:#e2e8f0;border:1px solid #334155;
+                 border-radius:6px;padding:7px 10px;font-size:.85rem;cursor:pointer;appearance:none;
+                 background-image:url('data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2394a3b8'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/></svg>');
+                 background-repeat:no-repeat;background-position:right 8px center;background-size:16px;
+                 padding-right:30px;">
+          <option value="">Chargement…</option>
+        </select>
+      </div>
+
       <div class="sidebar-footer">
         <div id="admin-user" style="margin-bottom:6px">Connecté</div>
         <button class="btn btn-ghost" style="width:100%;font-size:.8rem;padding:7px" id="btn-logout">Déconnexion</button>
@@ -303,7 +316,7 @@
 
       <!-- ── DASHBOARD ── -->
       <div class="page active" id="page-dashboard">
-        <div class="page-title">📊 Tableau de bord</div>
+        <div class="page-title">📊 Tableau de bord <span id="dash-annee-badge" style="font-size:.8rem;font-weight:500;background:#dcfce7;color:#16a34a;padding:2px 10px;border-radius:99px;margin-left:8px"></span></div>
         <div class="stats-grid" id="stats-grid">
           <div class="stat-card green"><div class="val" id="st-total">—</div><div class="lbl">Arrivées totales</div></div>
           <div class="stat-card blue"><div class="val" id="st-inscrits">—</div><div class="lbl">Inscrits</div></div>
@@ -326,7 +339,7 @@
       <!-- ── COURSES ── -->
       <div class="page" id="page-courses">
         <div class="page-title">
-          🏁 Gestion des courses
+          🏁 Gestion des courses <span id="courses-annee-badge" style="font-size:.8rem;font-weight:500;background:#dbeafe;color:#2563eb;padding:2px 10px;border-radius:99px;margin-left:4px"></span>
           <button class="btn btn-green" style="margin-left:auto;font-size:.85rem" id="btn-new-course">➕ Nouvelle course</button>
         </div>
         <div class="courses-grid" id="courses-grid"></div>
@@ -356,7 +369,8 @@
         <div class="page-title">📋 Gestion des coureurs</div>
 
         <div class="section-tabs">
-          <div class="section-tab active" data-tab="import-tab">Import CSV</div>
+          <div class="section-tab active" data-tab="import-tab">Import coureurs</div>
+          <div class="section-tab" data-tab="classement-import-tab">Import classement</div>
           <div class="section-tab" data-tab="list-tab">Liste coureurs</div>
           <div class="section-tab" data-tab="manual-tab">Ajout manuel</div>
         </div>
@@ -398,6 +412,53 @@
 103,BERNARD,Pierre,M,V2,
 104,LEROY,Marie,F,JU,Athlétisme Montpellier</pre>
             <button class="btn btn-ghost" id="btn-download-template" style="margin-top:10px">
+              ⬇ Télécharger le modèle
+            </button>
+          </div>
+        </div>
+
+        <!-- Import classement -->
+        <div id="classement-import-tab" class="tab-content" style="display:none">
+          <div class="card">
+            <div class="card-title">Import classement final (CSV)</div>
+            <p style="font-size:.85rem;color:var(--muted);margin-bottom:14px">
+              Importe le classement complet d'une course terminée. Met à jour les coureurs et les arrivées
+              en une seule opération. La course est automatiquement marquée <strong>Terminée</strong>.
+            </p>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Course cible</label>
+                <select id="classement-import-course-sel"></select>
+              </div>
+            </div>
+            <div class="drop-zone" id="classement-drop-zone">
+              <div class="icon">🏆</div>
+              <p><strong>Glissez le fichier CSV du classement</strong> ou cliquez pour parcourir</p>
+              <p style="margin-top:4px;font-size:.78rem">Format : position,dossard,nom,prenom,sexe,categorie,club,temps</p>
+            </div>
+            <input type="file" id="classement-file-input" accept=".csv,text/csv" />
+            <div id="classement-csv-preview" style="display:none">
+              <div style="font-size:.85rem;color:var(--muted);margin-bottom:8px" id="classement-csv-info"></div>
+              <textarea id="classement-csv-content" rows="8"></textarea>
+              <div style="margin-top:10px;display:flex;gap:8px">
+                <button class="btn btn-green" id="btn-import-classement">🏆 Importer le classement</button>
+                <button class="btn btn-ghost"  id="btn-cancel-classement">Annuler</button>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">Format du fichier CSV</div>
+            <pre style="font-size:.8rem;background:#f8fafc;padding:12px;border-radius:8px;overflow-x:auto">position,dossard,nom,prenom,sexe,categorie,club,temps
+1,42,DUPONT,Jean,M,SE,Trail Club 34,01:23:45
+2,17,MARTIN,Sophie,F,V1,Les Gazelles,01:25:30
+3,88,BERNARD,Pierre,M,V2,,01:26:10</pre>
+            <ul style="font-size:.82rem;color:var(--muted);margin-top:10px;padding-left:18px;line-height:1.8">
+              <li><strong>position</strong> : optionnel (recalculé automatiquement)</li>
+              <li><strong>dossard</strong> : requis</li>
+              <li><strong>nom, prenom, sexe, categorie, club</strong> : optionnels si les coureurs sont déjà importés</li>
+              <li><strong>temps</strong> : requis — format HH:MM:SS</li>
+            </ul>
+            <button class="btn btn-ghost" id="btn-download-classement-template" style="margin-top:12px">
               ⬇ Télécharger le modèle
             </button>
           </div>
@@ -652,8 +713,10 @@
 
 <script>
 // ─── État ─────────────────────────────────────────────────────────────────────
-let adminToken = null;
-let courses    = [];
+let adminToken    = null;
+let courses       = [];
+let annees        = [];
+let selectedAnnee = parseInt(localStorage.getItem('trail_admin_annee') || '') || new Date().getFullYear();
 let arriveesCourse = null; // course actuellement affichée dans arrivées
 
 // ─── DOM ─────────────────────────────────────────────────────────────────────
@@ -766,15 +829,47 @@ document.querySelectorAll('.section-tab').forEach(tab => {
 
 // ─── Init admin ───────────────────────────────────────────────────────────────
 async function initAdmin() {
-  await loadCourses();
-  await loadStats();  // loadStats met aussi à jour courses avec nb_arrives/inscrits
+  await loadAnnees();   // charge la liste des années disponibles + initialise le sélecteur
+  await loadCourses();  // charge les courses de l'année sélectionnée
+  await loadStats();    // enrichit courses avec nb_arrives/inscrits
   populateSelects();
 }
 
+// ─── Chargement et gestion des années ────────────────────────────────────────
+async function loadAnnees() {
+  try {
+    const res = await fetch('/api/annees');
+    if (!res.ok) return;
+    annees = await res.json(); // tableau trié décroissant ex: [2026, 2025, 2024]
+
+    const sel = document.getElementById('sel-annee');
+    sel.innerHTML = annees.map(a =>
+      `<option value="${a}" ${a === selectedAnnee ? 'selected' : ''}>${a}</option>`
+    ).join('');
+
+    // Si l'année sauvegardée n'existe plus, prendre la plus récente
+    if (annees.length > 0 && !annees.includes(selectedAnnee)) {
+      selectedAnnee = annees[0];
+      sel.value = selectedAnnee;
+    }
+  } catch { /* silencieux */ }
+}
+
+document.getElementById('sel-annee').addEventListener('change', async function() {
+  selectedAnnee = parseInt(this.value, 10);
+  localStorage.setItem('trail_admin_annee', selectedAnnee);
+  await loadCourses();
+  await loadStats();
+  populateSelects();
+  showToast(`✅ Édition ${selectedAnnee} sélectionnée`, 'success', 2000);
+});
+
 async function loadCourses() {
   // /api/courses est public, pas besoin du token admin
+  // On filtre toujours par l'année sélectionnée
   try {
-    const res = await fetch('/api/courses');
+    const url = selectedAnnee ? `/api/courses?annee=${selectedAnnee}` : '/api/courses';
+    const res = await fetch(url);
     if (res.ok) courses = await res.json();
   } catch { /* silencieux */ }
 }
@@ -783,16 +878,21 @@ async function loadStats() {
   const { ok, data } = await api('GET', '/api/admin/stats');
   if (!ok) return;
 
-  // Mettre à jour courses avec les données enrichies (nb_arrives, nb_inscrits)
-  if (data.length) courses = data;
+  // Filtrer les stats par l'année sélectionnée, puis enrichir courses
+  const filteredData = selectedAnnee ? data.filter(c => c.annee === selectedAnnee) : data;
+  if (filteredData.length) courses = filteredData;
 
   let totalArrivees = 0, totalInscrits = 0, nbEnCours = 0, nbTerminees = 0;
-  data.forEach(c => {
+  filteredData.forEach(c => {
     totalArrivees += c.nb_arrives;
     totalInscrits += c.nb_inscrits;
     if (c.statut === 'en_cours')  nbEnCours++;
     if (c.statut === 'terminee')  nbTerminees++;
   });
+
+  // Badge édition dans le titre du dashboard
+  const dashBadge = document.getElementById('dash-annee-badge');
+  if (dashBadge) dashBadge.textContent = selectedAnnee ? `Édition ${selectedAnnee}` : 'Toutes éditions';
 
   document.getElementById('st-total').textContent    = totalArrivees;
   document.getElementById('st-inscrits').textContent = totalInscrits;
@@ -801,7 +901,7 @@ async function loadStats() {
 
   // Dashboard courses
   const dash = document.getElementById('dashboard-courses');
-  dash.innerHTML = data.map(c => {
+  dash.innerHTML = filteredData.map(c => {
     const pct = c.nb_inscrits > 0 ? Math.round(c.nb_arrives / c.nb_inscrits * 100) : 0;
     const badgeClass = { attente: 'badge-orange', en_cours: 'badge-green', terminee: 'badge-blue' }[c.statut];
     const label = { attente: '⏳ En attente', en_cours: '🟢 En cours', terminee: '🏁 Terminée' }[c.statut];
@@ -819,10 +919,13 @@ async function loadStats() {
     </div>`;
   }).join('');
 
-  renderCoursesGrid(data);
+  renderCoursesGrid(filteredData);
 }
 
 function renderCoursesGrid(data) {
+  // Mettre à jour le badge d'année dans la page Courses
+  const coursesBadge = document.getElementById('courses-annee-badge');
+  if (coursesBadge) coursesBadge.textContent = selectedAnnee ? `Édition ${selectedAnnee}` : '';
   const grid = document.getElementById('courses-grid');
   grid.innerHTML = data.map(c => {
     const badgeClass = { attente: 'badge-orange', en_cours: 'badge-green', terminee: 'badge-blue' }[c.statut];
@@ -856,7 +959,7 @@ function renderCoursesGrid(data) {
 
 function populateSelects() {
   const selIds = [
-    'import-course-sel', 'list-course-sel', 'manual-coureur-course',
+    'import-course-sel', 'classement-import-course-sel', 'list-course-sel', 'manual-coureur-course',
     'arr-course-sel', 'arr-list-course', 'qr-course-sel', 'manual-course-sel',
   ];
   selIds.forEach(id => {
@@ -1393,7 +1496,7 @@ document.getElementById('btn-new-course').addEventListener('click', () => {
   document.getElementById('modal-course-title').textContent = 'Nouvelle course';
   document.getElementById('mc-course-nom').value   = '';
   document.getElementById('mc-course-dist').value  = '';
-  document.getElementById('mc-course-annee').value = new Date().getFullYear();
+  document.getElementById('mc-course-annee').value = selectedAnnee || new Date().getFullYear();
   const overlay = document.getElementById('modal-course-overlay');
   overlay.style.display = 'flex';
   document.getElementById('mc-course-nom').focus();
@@ -1436,7 +1539,7 @@ document.getElementById('modal-course-save').addEventListener('click', async () 
   if (res.ok) {
     showToast(editingCourseId ? `✅ Course modifiée` : `✅ Course "${nom}" créée`, 'success');
     document.getElementById('modal-course-overlay').style.display = 'none';
-    await loadCourses(); await loadStats(); populateSelects();
+    await loadAnnees(); await loadCourses(); await loadStats(); populateSelects();
   } else {
     showToast(`❌ ${res.data?.error || res.status || 'Erreur inconnue'}`, 'error');
   }
@@ -1509,6 +1612,95 @@ async function doDeleteCoureur(courseId, dossard, nomComplet) {
     showToast(`❌ ${res.data?.error || res.status || "Erreur inconnue"}`, 'error');
   }
 }
+
+// ─── Import classement ────────────────────────────────────────────────────────
+const classementDropZone   = document.getElementById('classement-drop-zone');
+const classementFileInput  = document.getElementById('classement-file-input');
+const classementCsvPreview = document.getElementById('classement-csv-preview');
+const classementCsvContent = document.getElementById('classement-csv-content');
+const classementCsvInfo    = document.getElementById('classement-csv-info');
+
+classementDropZone.addEventListener('click', () => classementFileInput.click());
+classementDropZone.addEventListener('dragover', e => { e.preventDefault(); classementDropZone.classList.add('drag-over'); });
+classementDropZone.addEventListener('dragleave', () => classementDropZone.classList.remove('drag-over'));
+classementDropZone.addEventListener('drop', e => {
+  e.preventDefault(); classementDropZone.classList.remove('drag-over');
+  if (e.dataTransfer.files[0]) loadClassementFile(e.dataTransfer.files[0]);
+});
+classementFileInput.addEventListener('change', () => {
+  if (classementFileInput.files[0]) loadClassementFile(classementFileInput.files[0]);
+});
+
+function loadClassementFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const text = e.target.result;
+    const lines = text.trim().split('\n').length - 1;
+    classementCsvInfo.textContent = `Fichier : ${file.name} — ${lines} coureurs détectés`;
+    classementCsvContent.value = text;
+    classementCsvPreview.style.display = 'block';
+    classementDropZone.style.display = 'none';
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
+document.getElementById('btn-cancel-classement').addEventListener('click', () => {
+  classementCsvPreview.style.display = 'none';
+  classementDropZone.style.display = 'block';
+  classementFileInput.value = '';
+});
+
+document.getElementById('btn-import-classement').addEventListener('click', async () => {
+  const courseId = document.getElementById('classement-import-course-sel').value;
+  const csv      = classementCsvContent.value.trim();
+  if (!courseId) return showToast('Choisissez une course', 'warning');
+  if (!csv)      return showToast('Fichier vide', 'warning');
+
+  // Confirmation si la course a déjà des arrivées
+  const courseName = document.getElementById('classement-import-course-sel').options[
+    document.getElementById('classement-import-course-sel').selectedIndex].textContent;
+  const ok = await confirm(
+    'Importer le classement ?',
+    `La course "${courseName}" sera marquée Terminée. Les arrivées déjà présentes seront conservées (les doublons ignorés).`
+  );
+  if (!ok) return;
+
+  const btn = document.getElementById('btn-import-classement');
+  btn.disabled = true; btn.textContent = '⏳ Import en cours…';
+
+  try {
+    const res = await fetch(`/api/admin/classement/import?course_id=${courseId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/csv', 'Authorization': `Bearer ${adminToken}` },
+      body: csv,
+    });
+    const data = await res.json();
+    if (res.ok) {
+      showToast(
+        `✅ ${data.importes} arrivées importées · ${data.ignores} ignorées (doublons) · ${data.coureurs_mis_a_jour} coureurs mis à jour`,
+        'success', 6000
+      );
+      classementCsvPreview.style.display = 'none';
+      classementDropZone.style.display = 'block';
+      classementFileInput.value = '';
+      await loadCourses(); await loadStats(); populateSelects();
+    } else {
+      showToast(`❌ ${data?.error || 'Erreur inconnue'}`, 'error');
+    }
+  } catch (e) {
+    showToast('❌ Erreur réseau', 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = '🏆 Importer le classement';
+  }
+});
+
+document.getElementById('btn-download-classement-template').addEventListener('click', () => {
+  const csv = 'position,dossard,nom,prenom,sexe,categorie,club,temps\n1,42,DUPONT,Jean,M,SE,Trail Club 34,01:23:45\n2,17,MARTIN,Sophie,F,V1,Les Gazelles,01:25:30\n3,88,BERNARD,Pierre,M,V2,,01:26:10\n';
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = 'modele_classement.csv';
+  a.click();
+});
 </script>
 </body>
 </html>

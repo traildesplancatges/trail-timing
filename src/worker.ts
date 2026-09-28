@@ -149,10 +149,13 @@ function requireBenevole(request: Request, env: Env): boolean {
 // ─── Handlers publics ────────────────────────────────────────────────────────
 
 // GET /api/annees → liste des années disponibles (tri décroissant)
-async function getAnnees(env: Env): Promise<Response> {
-  const { results } = await env.DB.prepare(
-    'SELECT DISTINCT annee FROM courses ORDER BY annee DESC',
-  ).all<{ annee: number }>();
+// ?terminee=1 → seulement les années avec au moins une course terminée
+async function getAnnees(url: URL, env: Env): Promise<Response> {
+  const termineeOnly = url.searchParams.get('terminee') === '1';
+  const query = termineeOnly
+    ? "SELECT DISTINCT annee FROM courses WHERE statut = 'terminee' ORDER BY annee DESC"
+    : 'SELECT DISTINCT annee FROM courses ORDER BY annee DESC';
+  const { results } = await env.DB.prepare(query).all<{ annee: number }>();
   return json(results.map(r => r.annee));
 }
 
@@ -217,7 +220,10 @@ async function getClassement(courseId: number, env: Env): Promise<Response> {
   const depart = new Date(course.heure_depart).getTime();
   const classement: LigneClassement[] = results.map((r) => {
     const temps_sec = Math.round((new Date(r.heure_arrivee).getTime() - depart) / 1000);
-    return { ...r, temps_sec, temps_brut: formatTemps(temps_sec) };
+    const vitesse_moy = temps_sec > 0
+      ? (course.distance_km / (temps_sec / 3600)).toFixed(2) + ' km/h'
+      : '—';
+    return { ...r, temps_sec, temps_brut: formatTemps(temps_sec), vitesse_moy };
   });
 
   return json({ course, classement });
@@ -582,6 +588,161 @@ async function deleteCoureur(courseId: number, dossard: number, request: Request
   return json({ success: true });
 }
 
+
+// POST /api/admin/classement/import
+// CSV : position,dossard,nom,prenom,sexe,categorie,club,temps
+//       - position : optionnel (recalculé au tri par temps)
+//       - temps    : HH:MM:SS ou H:MM:SS
+// Si la course n'a pas de heure_depart, elle est calculée comme :
+//   heure_depart = now - temps_du_premier_coureur
+// La course est marquée "terminee" après import.
+async function importClassement(request: Request, env: Env): Promise<Response> {
+  if (!await requireAdmin(request, env)) return err('Non autorisé', 401);
+
+  const url = new URL(request.url);
+  const courseId = Number(url.searchParams.get('course_id'));
+  if (!Number.isInteger(courseId) || courseId < 1) return err('course_id invalide');
+
+  const course = await env.DB.prepare('SELECT * FROM courses WHERE id = ?').bind(courseId).first<Course>();
+  if (!course) return err('Course introuvable', 404);
+  if (course.statut === 'en_cours') return err('Impossible d\'importer pendant une course en cours', 409);
+
+  const text = await request.text();
+  const rows = text.trim().split('\n');
+  if (rows.length < 2) return err('Fichier vide ou sans données');
+
+  // Détecter le séparateur (virgule ou point-virgule) depuis la première ligne
+  const sep = rows[0].includes(';') ? ';' : ',';
+  const header = rows[0].split(sep).map(h => h.trim().toLowerCase().replace(/^"|"$/g, ''));
+  const col = (name: string) => header.indexOf(name);
+
+  const iDossard  = col('dossard');
+  const iTemps    = col('temps');
+  const iNom      = col('nom');
+  const iPrenom   = col('prenom');
+  const iSexe     = col('sexe');
+  const iCateg    = col('categorie');
+  const iClub     = col('club');
+
+  if (iDossard < 0) return err('Colonne "dossard" manquante dans l\'en-tête');
+  if (iTemps   < 0) return err('Colonne "temps" manquante dans l\'en-tête (format HH:MM:SS)');
+
+  // Parser les lignes de données
+  interface LigneImport {
+    dossard: number;
+    tempsStr: string;
+    tempsSec: number;
+    nom: string;
+    prenom: string;
+    sexe: string;
+    categorie: string;
+    club: string;
+  }
+
+  const lignes: LigneImport[] = [];
+  for (const row of rows.slice(1)) {
+    if (!row.trim()) continue;
+    const cells = row.split(sep).map(c => c.trim().replace(/^"|"$/g, ''));
+    const dossard = Number(cells[iDossard]);
+    const tempsStr = cells[iTemps] ?? '';
+    if (!dossard || !tempsStr) continue;
+
+    // Parser HH:MM:SS ou H:MM:SS en secondes
+    const parts = tempsStr.split(':').map(Number);
+    let tempsSec = 0;
+    if (parts.length === 3) tempsSec = parts[0] * 3600 + parts[1] * 60 + parts[2];
+    else if (parts.length === 2) tempsSec = parts[0] * 60 + parts[1];
+    if (isNaN(tempsSec) || tempsSec < 0) continue;
+
+    lignes.push({
+      dossard,
+      tempsStr,
+      tempsSec,
+      nom:       iNom    >= 0 ? (cells[iNom] ?? '').toUpperCase()        : '',
+      prenom:    iPrenom >= 0 ? (cells[iPrenom] ?? '')                    : '',
+      sexe:      iSexe   >= 0 ? (cells[iSexe] ?? 'M').toUpperCase().charAt(0) : 'M',
+      categorie: iCateg  >= 0 ? (cells[iCateg] ?? '').toUpperCase()       : '',
+      club:      iClub   >= 0 ? (cells[iClub] ?? '')                      : '',
+    });
+  }
+
+  if (lignes.length === 0) return err('Aucune ligne valide dans le fichier');
+
+  // Trier par temps croissant (au cas où le CSV n'est pas trié)
+  lignes.sort((a, b) => a.tempsSec - b.tempsSec);
+
+  // Calculer ou utiliser heure_depart
+  let heureDepart: string;
+  if (course.heure_depart) {
+    heureDepart = course.heure_depart;
+  } else {
+    // Synthétique : on part d'un temps de référence fixe (9h00 UTC)
+    // afin que les temps affichés correspondent exactement au CSV
+    const ref = new Date();
+    ref.setUTCHours(9, 0, 0, 0);
+    heureDepart = ref.toISOString();
+  }
+
+  const departMs = new Date(heureDepart).getTime();
+
+  // Calculer les heures d'arrivée
+  const arrivees = lignes.map(l => ({
+    ...l,
+    heureArrivee: new Date(departMs + l.tempsSec * 1000).toISOString(),
+  }));
+
+  // Upsert coureurs (si les colonnes sont présentes)
+  let courseursOk = 0;
+  if (iNom >= 0 && iPrenom >= 0) {
+    for (const a of arrivees) {
+      if (!a.nom) continue;
+      try {
+        await env.DB.prepare(
+          `INSERT INTO coureurs (dossard, course_id, nom, prenom, sexe, categorie, club)
+           VALUES (?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT (dossard, course_id) DO UPDATE SET
+             nom=excluded.nom, prenom=excluded.prenom, sexe=excluded.sexe,
+             categorie=excluded.categorie, club=excluded.club`,
+        ).bind(a.dossard, courseId, a.nom, a.prenom, a.sexe, a.categorie, a.club).run();
+        courseursOk++;
+      } catch { /* ignore */ }
+    }
+  }
+
+  // Insérer les arrivées
+  let arriveeOk = 0, arriveeSkip = 0;
+  for (const a of arrivees) {
+    try {
+      await env.DB.prepare(
+        `INSERT INTO arrivees (dossard, course_id, heure_arrivee, saisie_par)
+         VALUES (?, ?, ?, ?)`,
+      ).bind(a.dossard, courseId, a.heureArrivee, 'import').run();
+      arriveeOk++;
+    } catch {
+      arriveeSkip++; // UNIQUE contrainte → déjà présent
+    }
+  }
+
+  // Mettre à jour la course : heure_depart si non définie + statut terminée
+  if (!course.heure_depart) {
+    await env.DB.prepare(
+      "UPDATE courses SET heure_depart = ?, statut = 'terminee' WHERE id = ?",
+    ).bind(heureDepart, courseId).run();
+  } else if (course.statut !== 'terminee') {
+    await env.DB.prepare(
+      "UPDATE courses SET statut = 'terminee' WHERE id = ?",
+    ).bind(courseId).run();
+  }
+
+  return json({
+    success: true,
+    importes: arriveeOk,
+    ignores: arriveeSkip,
+    coureurs_mis_a_jour: courseursOk,
+    total: lignes.length,
+  }, 201);
+}
+
 // ─── Router principal ─────────────────────────────────────────────────────────
 
 export default {
@@ -597,7 +758,7 @@ export default {
     // ── Routes publiques ────────────────────────────────────────────────────
 
     if (path === '/api/annees' && method === 'GET') {
-      return getAnnees(env);
+      return getAnnees(url, env);
     }
 
     if (path === '/api/courses' && method === 'GET') {
@@ -637,6 +798,10 @@ export default {
 
     if (path === '/api/admin/coureurs/import' && method === 'POST') {
       return importCoureurs(request, env);
+    }
+
+    if (path === '/api/admin/classement/import' && method === 'POST') {
+      return importClassement(request, env);
     }
 
     const courseursMatch = path.match(/^\/api\/admin\/coureurs\/(\d+)$/);
