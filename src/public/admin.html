@@ -592,6 +592,10 @@
         <label>Distance (km)</label>
         <input type="number" id="mc-course-dist" placeholder="Ex : 18" min="0.1" step="0.1" />
       </div>
+      <div class="form-group" style="max-width:100px">
+        <label>Année</label>
+        <input type="number" id="mc-course-annee" placeholder="Ex : 2026" min="2000" step="1" />
+      </div>
     </div>
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px">
       <button class="btn btn-ghost" id="modal-course-cancel">Annuler</button>
@@ -643,8 +647,8 @@
 <!-- Toast -->
 <div id="toast"></div>
 
-<!-- QR code lib -->
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<!-- QR code lib (bundle browser natif) -->
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 
 <script>
 // ─── État ─────────────────────────────────────────────────────────────────────
@@ -763,18 +767,24 @@ document.querySelectorAll('.section-tab').forEach(tab => {
 // ─── Init admin ───────────────────────────────────────────────────────────────
 async function initAdmin() {
   await loadCourses();
-  await loadStats();
+  await loadStats();  // loadStats met aussi à jour courses avec nb_arrives/inscrits
   populateSelects();
 }
 
 async function loadCourses() {
-  const { ok, data } = await api('GET', '/api/courses');
-  if (ok) courses = data;
+  // /api/courses est public, pas besoin du token admin
+  try {
+    const res = await fetch('/api/courses');
+    if (res.ok) courses = await res.json();
+  } catch { /* silencieux */ }
 }
 
 async function loadStats() {
   const { ok, data } = await api('GET', '/api/admin/stats');
   if (!ok) return;
+
+  // Mettre à jour courses avec les données enrichies (nb_arrives, nb_inscrits)
+  if (data.length) courses = data;
 
   let totalArrivees = 0, totalInscrits = 0, nbEnCours = 0, nbTerminees = 0;
   data.forEach(c => {
@@ -826,13 +836,13 @@ function renderCoursesGrid(data) {
       btns = `<button class="btn btn-red" onclick="stopCourse(${c.id})">⏹ Clôturer</button>`;
     }
     btns += ` <button class="btn btn-ghost" onclick="resetCourse(${c.id})" title="Remet en attente et efface les arrivées">🔄 Reset</button>`;
-    btns += ` <button class="btn btn-blue"  onclick="openEditCourse(${c.id},'${c.nom.replace(/'/g,"\\'")}',${c.distance_km})">✏️ Modifier</button>`;
+    btns += ` <button class="btn btn-blue"  onclick="openEditCourse(${c.id},'${c.nom.replace(/'/g,"\\'")}',${c.distance_km},${c.annee})">✏️ Modifier</button>`;
     if (c.statut === 'attente') {
       btns += ` <button class="btn btn-red" onclick="doDeleteCourse(${c.id},'${c.nom.replace(/'/g,"\\'")}')">🗑 Supprimer</button>`;
     }
 
     return `<div class="course-card">
-      <div class="c-name">${c.nom}</div>
+      <div class="c-name">${c.nom} <span style="font-size:.75rem;color:var(--muted);font-weight:400">${c.annee}</span></div>
       <div class="c-meta">Départ : ${depart}</div>
       <span class="badge ${badgeClass}">${label}</span>
       <div class="c-stats">
@@ -858,10 +868,13 @@ function populateSelects() {
   // Export courses
   const exportDiv = document.getElementById('export-courses');
   exportDiv.innerHTML = courses.map(c => `
-    <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)">
+    <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);flex-wrap:wrap">
       <div style="font-weight:700;width:60px">${c.nom}</div>
       <div style="flex:1;font-size:.85rem;color:var(--muted)">${c.nb_arrives} arrivées enregistrées</div>
-      <button class="btn btn-green" onclick="exportCSV(${c.id},'${c.nom}')">⬇ CSV ${c.nom}</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-green"  onclick="exportCSV(${c.id},'${c.nom}')">⬇ CSV</button>
+        <button class="btn btn-purple" onclick="exportPDF(${c.id},'${c.nom}')">📄 PDF</button>
+      </div>
     </div>
   `).join('');
 }
@@ -875,7 +888,7 @@ async function startCourse(id) {
     showToast('✅ Course démarrée !', 'success');
     await loadCourses(); await loadStats(); populateSelects();
   } else {
-    showToast(`❌ ${res.data.error}`, 'error');
+    showToast(`❌ ${res.data?.error || res.status || "Erreur inconnue"}`, 'error');
   }
 }
 
@@ -887,7 +900,7 @@ async function stopCourse(id) {
     showToast('🏁 Course clôturée', 'success');
     await loadCourses(); await loadStats(); populateSelects();
   } else {
-    showToast(`❌ ${res.data.error}`, 'error');
+    showToast(`❌ ${res.data?.error || res.status || "Erreur inconnue"}`, 'error');
   }
 }
 
@@ -899,7 +912,7 @@ async function resetCourse(id) {
     showToast('🔄 Course remise à zéro', 'warning');
     await loadCourses(); await loadStats(); populateSelects();
   } else {
-    showToast(`❌ ${res.data.error}`, 'error');
+    showToast(`❌ ${res.data?.error || res.status || "Erreur inconnue"}`, 'error');
   }
 }
 
@@ -918,7 +931,7 @@ document.getElementById('btn-manual-start').addEventListener('click', async () =
     showToast('✅ Course démarrée', 'success');
     await loadCourses(); await loadStats(); populateSelects();
   } else {
-    showToast(`❌ ${res.data.error}`, 'error');
+    showToast(`❌ ${res.data?.error || res.status || "Erreur inconnue"}`, 'error');
   }
 });
 
@@ -1119,7 +1132,7 @@ async function supprimerArrivee(id, dossard) {
     await loadArriveesList();
     await loadStats();
   } else {
-    showToast(`❌ ${res.data.error}`, 'error');
+    showToast(`❌ ${res.data?.error || res.status || "Erreur inconnue"}`, 'error');
   }
 }
 
@@ -1137,6 +1150,129 @@ async function exportCSV(courseId, nom) {
   showToast(`✅ Export ${nom} téléchargé`, 'success');
 }
 
+// ─── Export PDF (page imprimable → Ctrl+P → Enregistrer en PDF) ──────────────
+async function exportPDF(courseId, nom) {
+  // Récupérer les données du classement
+  const res = await fetch(`/api/classement/${courseId}`, {
+    headers: { 'Authorization': `Bearer ${adminToken}` }
+  });
+  if (!res.ok) return showToast('Erreur chargement classement', 'error');
+  const { course, classement } = await res.json();
+
+  if (!classement?.length) return showToast('Aucune arrivée à exporter', 'warning');
+
+  const date = new Date().toLocaleDateString('fr-FR', { day:'2-digit', month:'long', year:'numeric' });
+  const depart = course.heure_depart
+    ? new Date(course.heure_depart).toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' })
+    : '—';
+
+  // Construire les lignes du tableau
+  const lignes = classement.map(r => {
+    const pos = r.position <= 3
+      ? ['🥇','🥈','🥉'][r.position - 1] + ' ' + r.position
+      : r.position;
+    return `<tr>
+      <td class="pos">${pos}</td>
+      <td class="dossard">${r.dossard}</td>
+      <td class="nom">${escHtml(r.nom)} ${escHtml(r.prenom)}</td>
+      <td>${escHtml(r.sexe)}</td>
+      <td>${escHtml(r.categorie)}</td>
+      <td>${escHtml(r.club || '—')}</td>
+      <td class="temps">${r.temps_brut}</td>
+    </tr>`;
+  }).join('');
+
+  const html = `<!DOCTYPE html>
+<html lang="fr"><head>
+  <meta charset="UTF-8">
+  <title>Classement ${nom} — Trail des Plancatges</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 11pt; color: #000; background: #fff; }
+
+    .header { padding: 16px 20px 12px; border-bottom: 3px solid #16a34a; margin-bottom: 16px; }
+    .header h1 { font-size: 20pt; font-weight: 900; color: #15803d; margin-bottom: 2px; }
+    .header h2 { font-size: 14pt; font-weight: 700; color: #1e293b; margin-bottom: 6px; }
+    .header-meta { display: flex; gap: 24px; font-size: 9pt; color: #555; }
+    .header-meta span strong { color: #000; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
+    thead tr { background: #15803d; color: #fff; }
+    thead th { padding: 7px 8px; text-align: left; font-weight: 700; font-size: 8.5pt; text-transform: uppercase; letter-spacing: .04em; }
+    tbody tr { border-bottom: 1px solid #e2e8f0; }
+    tbody tr:nth-child(even) { background: #f8fafc; }
+    tbody tr:nth-child(1) { background: #fefce8; }
+    tbody tr:nth-child(2) { background: #f0fdf4; }
+    tbody tr:nth-child(3) { background: #f0fdf4; }
+    td { padding: 5px 8px; vertical-align: middle; }
+    td.pos { font-weight: 900; text-align: center; width: 38px; font-size: 11pt; }
+    td.dossard { font-weight: 700; color: #64748b; width: 52px; }
+    td.nom { font-weight: 600; }
+    td.temps { font-family: 'Courier New', monospace; font-weight: 700; color: #15803d; text-align: right; width: 80px; }
+
+    .footer { margin-top: 20px; padding-top: 10px; border-top: 1px solid #e2e8f0; font-size: 8pt; color: #94a3b8; display: flex; justify-content: space-between; }
+    .no-print { padding: 12px 20px; background: #f1f5f9; display: flex; gap: 12px; align-items: center; margin-bottom: 12px; }
+
+    @media print {
+      .no-print { display: none !important; }
+      body { font-size: 10pt; }
+      thead tr { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      tbody tr:nth-child(even) { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      tbody tr:nth-child(1),
+      tbody tr:nth-child(2),
+      tbody tr:nth-child(3) { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      table { page-break-inside: auto; }
+      tr { page-break-inside: avoid; }
+    }
+  </style>
+</head><body>
+
+  <div class="no-print">
+    <strong>Classement ${escHtml(nom)} — Aperçu avant impression</strong>
+    <button onclick="window.print()" style="padding:8px 20px;background:#15803d;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:700;font-size:1rem">
+      📄 Imprimer / Enregistrer en PDF
+    </button>
+    <span style="font-size:.85rem;color:#64748b">Dans la boîte d'impression → choisir "Enregistrer en PDF"</span>
+  </div>
+
+  <div class="header">
+    <h1>🏔 Trail des Plancatges</h1>
+    <h2>Classement ${escHtml(nom)}</h2>
+    <div class="header-meta">
+      <span>📅 <strong>${date}</strong></span>
+      <span>🕐 Départ : <strong>${depart}</strong></span>
+      <span>👟 Arrivées : <strong>${classement.length}</strong></span>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Pos.</th>
+        <th>#</th>
+        <th>Nom — Prénom</th>
+        <th>Sx</th>
+        <th>Cat.</th>
+        <th>Club</th>
+        <th>Temps</th>
+      </tr>
+    </thead>
+    <tbody>${lignes}</tbody>
+  </table>
+
+  <div class="footer">
+    <span>Trail des Plancatges — ${escHtml(nom)}</span>
+    <span>Généré le ${date}</span>
+  </div>
+</body></html>`;
+
+  const win = window.open('', '_blank');
+  win.document.write(html);
+  win.document.close();
+  // Déclencher l'impression automatiquement après chargement
+  win.onload = () => win.print();
+}
+
 // ─── QR Codes ────────────────────────────────────────────────────────────────
 document.getElementById('btn-gen-qr').addEventListener('click', async () => {
   const courseId  = document.getElementById('qr-course-sel').value;
@@ -1147,52 +1283,76 @@ document.getElementById('btn-gen-qr').addEventListener('click', async () => {
   if (!to || to < from) return showToast('Plage de dossards invalide', 'warning');
   if (to - from > 500) return showToast('Maximum 500 QR codes à la fois', 'warning');
 
-  // Ouvrir une nouvelle fenêtre avec les QR codes imprimables
+  // Générer les QR dans la page courante (lib déjà chargée) puis injecter en PNG dans la popup
+  showToast('⏳ Génération des QR codes…', 'success', 2000);
+
+  const cards = [];
+  for (let d = from; d <= to; d++) {
+    const data = `${d}:${courseId}`;
+    try {
+      // qrcode-generator API : qrcode(typeNumber, errorCorrectionLevel)
+      const qr = qrcode(0, 'M');
+      qr.addData(data);
+      qr.make();
+      // Obtenir une data URL PNG via canvas
+      const moduleCount = qr.getModuleCount();
+      const cellSize = 4;
+      const size = moduleCount * cellSize;
+      const canvas = document.createElement('canvas');
+      canvas.width = size; canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, size, size);
+      ctx.fillStyle = '#000000';
+      for (let row = 0; row < moduleCount; row++) {
+        for (let col = 0; col < moduleCount; col++) {
+          if (qr.isDark(row, col)) {
+            ctx.fillRect(col * cellSize, row * cellSize, cellSize, cellSize);
+          }
+        }
+      }
+      cards.push({ dossard: d, dataUrl: canvas.toDataURL('image/png') });
+    } catch (e) {
+      console.error('QR error', d, e);
+    }
+  }
+
+  if (!cards.length) return showToast('Erreur lors de la génération des QR', 'error');
+
+  // Construire le HTML de la popup avec des <img> (pas de lib nécessaire)
+  const cardsHtml = cards.map(({ dossard, dataUrl }) => `
+    <div class="qr-card">
+      <img src="${dataUrl}" width="100" height="100" alt="QR ${dossard}" />
+      <div class="dossard-num">${dossard}</div>
+      <div class="course-name">${courseNom}</div>
+    </div>`).join('');
+
   const win = window.open('', '_blank');
   win.document.write(`<!DOCTYPE html><html><head>
     <meta charset="UTF-8">
     <title>QR Codes — ${courseNom}</title>
     <style>
-      * { box-sizing: border-box; margin: 0; padding: 0; }
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
       body { font-family: sans-serif; background: #fff; }
-      .grid { display: flex; flex-wrap: wrap; gap: 10px; padding: 20px; }
+      .grid { display: flex; flex-wrap: wrap; gap: 8px; padding: 16px; }
       .qr-card {
-        border: 2px solid #000; border-radius: 8px; padding: 10px;
-        text-align: center; width: 110px; page-break-inside: avoid;
+        border: 2px solid #000; border-radius: 6px; padding: 8px;
+        text-align: center; width: 124px; break-inside: avoid;
       }
-      .qr-card canvas { display: block; margin: 0 auto; }
-      .dossard-num { font-size: 1.4rem; font-weight: 900; margin-top: 6px; }
+      .qr-card img { display: block; margin: 0 auto; }
+      .dossard-num { font-size: 1.5rem; font-weight: 900; margin-top: 4px; }
       .course-name { font-size: .65rem; color: #555; margin-top: 2px; }
       @media print {
         .no-print { display: none; }
-        body { padding: 0; }
-        .grid { gap: 6px; padding: 10px; }
+        .grid { gap: 4px; padding: 8px; }
       }
     </style>
   </head><body>
-    <div class="no-print" style="padding:14px;background:#f1f5f9;display:flex;gap:10px;align-items:center">
-      <strong>QR Codes — ${courseNom} (dossards ${from} à ${to})</strong>
-      <button onclick="window.print()" style="padding:8px 16px;background:#16a34a;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600">🖨 Imprimer</button>
+    <div class="no-print" style="padding:12px;background:#f1f5f9;display:flex;gap:10px;align-items:center;margin-bottom:8px">
+      <strong>QR Codes — ${courseNom} (dossards ${from} à ${to}) — ${cards.length} générés</strong>
+      <button onclick="window.print()" style="padding:8px 16px;background:#16a34a;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;margin-left:12px">🖨 Imprimer</button>
     </div>
-    <div class="grid" id="qr-grid"></div>
-    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"><\/script>
-    <script>
-      const grid = document.getElementById('qr-grid');
-      for (let d = ${from}; d <= ${to}; d++) {
-        const card = document.createElement('div');
-        card.className = 'qr-card';
-        const canvas = document.createElement('canvas');
-        card.appendChild(canvas);
-        const num = document.createElement('div');
-        num.className = 'dossard-num'; num.textContent = d;
-        card.appendChild(num);
-        const cn = document.createElement('div');
-        cn.className = 'course-name'; cn.textContent = '${courseNom}';
-        card.appendChild(cn);
-        grid.appendChild(card);
-        QRCode.toCanvas(canvas, String(d), { width: 80, margin: 1, errorCorrectionLevel: 'M' });
-      }
-    <\/script>
+    <div class="grid">${cardsHtml}</div>
   </body></html>`);
   win.document.close();
 });
@@ -1231,18 +1391,20 @@ let editingCourseId = null;
 document.getElementById('btn-new-course').addEventListener('click', () => {
   editingCourseId = null;
   document.getElementById('modal-course-title').textContent = 'Nouvelle course';
-  document.getElementById('mc-course-nom').value  = '';
-  document.getElementById('mc-course-dist').value = '';
+  document.getElementById('mc-course-nom').value   = '';
+  document.getElementById('mc-course-dist').value  = '';
+  document.getElementById('mc-course-annee').value = new Date().getFullYear();
   const overlay = document.getElementById('modal-course-overlay');
   overlay.style.display = 'flex';
   document.getElementById('mc-course-nom').focus();
 });
 
-function openEditCourse(id, nom, dist) {
+function openEditCourse(id, nom, dist, annee) {
   editingCourseId = id;
   document.getElementById('modal-course-title').textContent = 'Modifier la course';
-  document.getElementById('mc-course-nom').value  = nom;
-  document.getElementById('mc-course-dist').value = dist;
+  document.getElementById('mc-course-nom').value   = nom;
+  document.getElementById('mc-course-dist').value  = dist;
+  document.getElementById('mc-course-annee').value = annee ?? new Date().getFullYear();
   const overlay = document.getElementById('modal-course-overlay');
   overlay.style.display = 'flex';
   document.getElementById('mc-course-nom').focus();
@@ -1254,18 +1416,20 @@ document.getElementById('modal-course-cancel').addEventListener('click', () => {
 
 document.getElementById('modal-course-save').addEventListener('click', async () => {
   const nom  = document.getElementById('mc-course-nom').value.trim();
-  const dist = parseFloat(document.getElementById('mc-course-dist').value);
+  const dist  = parseFloat(document.getElementById('mc-course-dist').value);
+  const annee = parseInt(document.getElementById('mc-course-annee').value, 10);
   if (!nom)         return showToast('Nom requis', 'warning');
   if (!dist || dist <= 0) return showToast('Distance invalide', 'warning');
+  if (!annee || annee < 2000) return showToast('Année invalide', 'warning');
 
   const btn = document.getElementById('modal-course-save');
   btn.disabled = true;
 
   let res;
   if (editingCourseId) {
-    res = await api('PUT', `/api/admin/course/${editingCourseId}`, { nom, distance_km: dist });
+    res = await api('PUT', `/api/admin/course/${editingCourseId}`, { nom, distance_km: dist, annee });
   } else {
-    res = await api('POST', '/api/admin/course', { nom, distance_km: dist });
+    res = await api('POST', '/api/admin/course', { nom, distance_km: dist, annee });
   }
 
   btn.disabled = false;
@@ -1274,7 +1438,7 @@ document.getElementById('modal-course-save').addEventListener('click', async () 
     document.getElementById('modal-course-overlay').style.display = 'none';
     await loadCourses(); await loadStats(); populateSelects();
   } else {
-    showToast(`❌ ${res.data.error}`, 'error');
+    showToast(`❌ ${res.data?.error || res.status || 'Erreur inconnue'}`, 'error');
   }
 });
 
@@ -1286,7 +1450,7 @@ async function doDeleteCourse(id, nom) {
     showToast(`🗑 Course "${nom}" supprimée`, 'warning');
     await loadCourses(); await loadStats(); populateSelects();
   } else {
-    showToast(`❌ ${res.data.error}`, 'error');
+    showToast(`❌ ${res.data?.error || res.status || "Erreur inconnue"}`, 'error');
   }
 }
 
@@ -1329,7 +1493,7 @@ document.getElementById('modal-coureur-save').addEventListener('click', async ()
     document.getElementById('modal-coureur-overlay').style.display = 'none';
     await loadCoureursList();
   } else {
-    showToast(`❌ ${res.data.error}`, 'error');
+    showToast(`❌ ${res.data?.error || res.status || "Erreur inconnue"}`, 'error');
   }
 });
 
@@ -1342,7 +1506,7 @@ async function doDeleteCoureur(courseId, dossard, nomComplet) {
     await loadCoureursList();
     await loadStats();
   } else {
-    showToast(`❌ ${res.data.error}`, 'error');
+    showToast(`❌ ${res.data?.error || res.status || "Erreur inconnue"}`, 'error');
   }
 }
 </script>

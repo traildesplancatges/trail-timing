@@ -318,6 +318,7 @@
   <button class="filter-btn" data-filter="M">Hommes</button>
   <button class="filter-btn" data-filter="F">Femmes</button>
   <span id="course-info"></span>
+  <button id="btn-print-pdf" class="filter-btn" onclick="ouvrirPDF()" title="Exporter en PDF">📄 PDF</button>
 </div>
 
 <!-- Podium (masqué si < 3 arrivées) -->
@@ -590,6 +591,107 @@ function resetCountdown() {
 // ─── Utils ────────────────────────────────────────────────────────────────────
 function escHtml(s) {
   return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ─── Export PDF ───────────────────────────────────────────────────────────────
+function ouvrirPDF() {
+  const course = state.courses.find(c => c.id === state.courseId);
+  const classement = state.classement;
+  if (!classement?.length) return alert('Aucune arrivée à exporter.');
+
+  const nom    = course?.nom ?? 'Classement';
+  const date   = new Date().toLocaleDateString('fr-FR', { day:'2-digit', month:'long', year:'numeric' });
+  const depart = course?.heure_depart
+    ? new Date(course.heure_depart).toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' })
+    : '—';
+
+  // Appliquer les filtres actifs (sexe + recherche)
+  let lignesFiltrees = [...classement];
+  if (state.filter !== 'all') {
+    lignesFiltrees = lignesFiltrees.filter(r => r.sexe === state.filter);
+    lignesFiltrees = lignesFiltrees.map((r, i) => ({ ...r, position: i + 1 }));
+  }
+  if (state.searchTerm) {
+    lignesFiltrees = lignesFiltrees.filter(r =>
+      String(r.dossard).includes(state.searchTerm) ||
+      r.nom.toLowerCase().includes(state.searchTerm) ||
+      r.prenom.toLowerCase().includes(state.searchTerm)
+    );
+  }
+
+  const filtreLabel = state.filter === 'F' ? ' — Femmes' : state.filter === 'M' ? ' — Hommes' : '';
+
+  const lignesHtml = lignesFiltrees.map(r => {
+    const pos = r.position <= 3 ? ['🥇','🥈','🥉'][r.position - 1] + ' ' + r.position : r.position;
+    return `<tr>
+      <td class="pos">${pos}</td>
+      <td class="dossard">${r.dossard}</td>
+      <td class="nom">${escHtml(r.nom)} ${escHtml(r.prenom)}</td>
+      <td>${escHtml(r.sexe)}</td>
+      <td>${escHtml(r.categorie)}</td>
+      <td>${escHtml(r.club || '—')}</td>
+      <td class="temps">${r.temps_brut}</td>
+    </tr>`;
+  }).join('');
+
+  const html = `<!DOCTYPE html><html lang="fr"><head>
+  <meta charset="UTF-8">
+  <title>Classement ${escHtml(nom)}${filtreLabel} — Trail des Plancatges</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 11pt; color: #000; }
+    .header { padding: 16px 20px 12px; border-bottom: 3px solid #16a34a; margin-bottom: 16px; }
+    .header h1 { font-size: 20pt; font-weight: 900; color: #15803d; }
+    .header h2 { font-size: 14pt; font-weight: 700; margin: 2px 0 6px; }
+    .header-meta { display: flex; gap: 24px; font-size: 9pt; color: #555; }
+    .header-meta strong { color: #000; }
+    table { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
+    thead tr { background: #15803d; color: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    thead th { padding: 7px 8px; text-align: left; font-weight: 700; font-size: 8.5pt; text-transform: uppercase; }
+    tbody tr { border-bottom: 1px solid #e2e8f0; }
+    tbody tr:nth-child(even) { background: #f8fafc; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    td { padding: 5px 8px; vertical-align: middle; }
+    td.pos { font-weight: 900; text-align: center; width: 38px; font-size: 11pt; }
+    td.dossard { font-weight: 700; color: #64748b; width: 52px; }
+    td.nom { font-weight: 600; }
+    td.temps { font-family: monospace; font-weight: 700; color: #15803d; text-align: right; width: 80px; }
+    .footer { margin-top: 20px; padding-top: 8px; border-top: 1px solid #e2e8f0; font-size: 8pt; color: #94a3b8; display: flex; justify-content: space-between; }
+    .no-print { padding: 12px 20px; background: #f1f5f9; display: flex; gap: 12px; align-items: center; margin-bottom: 12px; }
+    @media print { .no-print { display: none !important; } tr { page-break-inside: avoid; } }
+  </style>
+</head><body>
+  <div class="no-print">
+    <strong>Classement ${escHtml(nom)}${filtreLabel}</strong>
+    <button onclick="window.print()" style="padding:8px 20px;background:#15803d;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:700">
+      📄 Imprimer / Enregistrer en PDF
+    </button>
+    <span style="font-size:.85rem;color:#64748b">Choisir "Enregistrer en PDF" dans la boîte d'impression</span>
+  </div>
+  <div class="header">
+    <h1>🏔 Trail des Plancatges</h1>
+    <h2>Classement ${escHtml(nom)}${filtreLabel}</h2>
+    <div class="header-meta">
+      <span>📅 <strong>${date}</strong></span>
+      <span>🕐 Départ : <strong>${depart}</strong></span>
+      <span>👟 ${lignesFiltrees.length} arrivées</span>
+    </div>
+  </div>
+  <table>
+    <thead><tr>
+      <th>Pos.</th><th>#</th><th>Nom — Prénom</th><th>Sx</th><th>Cat.</th><th>Club</th><th>Temps</th>
+    </tr></thead>
+    <tbody>${lignesHtml}</tbody>
+  </table>
+  <div class="footer">
+    <span>Trail des Plancatges — ${escHtml(nom)}${filtreLabel}</span>
+    <span>Généré le ${date}</span>
+  </div>
+</body></html>`;
+
+  const win = window.open('', '_blank');
+  win.document.write(html);
+  win.document.close();
+  win.onload = () => win.print();
 }
 
 // Rafraîchissement auto plus rapide si course en cours

@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS courses (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   nom         TEXT    NOT NULL,           -- ex: "5km", "10km", "18km"
   distance_km REAL    NOT NULL,
+  annee       INTEGER NOT NULL DEFAULT 2026, -- édition (année)
   heure_depart TEXT   DEFAULT NULL,       -- ISO 8601 UTC, null = pas encore démarrée
   statut      TEXT    NOT NULL DEFAULT 'attente'
                       CHECK (statut IN ('attente', 'en_cours', 'terminee'))
@@ -44,7 +45,7 @@ CREATE INDEX IF NOT EXISTS idx_coureurs_course  ON coureurs (course_id);
 -- =============================================================
 -- Données initiales : les 3 courses
 -- =============================================================
-INSERT OR IGNORE INTO courses (id, nom, distance_km) VALUES
-  (1, '5km',  5.0),
-  (2, '10km', 10.0),
-  (3, '18km', 18.0);
+INSERT OR IGNORE INTO courses (id, nom, distance_km, annee) VALUES
+  (1, '5km',  5.0,  2026),
+  (2, '10km', 10.0, 2026),
+  (3, '18km', 18.0, 2026);
