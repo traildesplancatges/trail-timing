@@ -657,7 +657,15 @@
         <label>Année</label>
         <input type="number" id="mc-course-annee" placeholder="Ex : 2026" min="2000" step="1" />
       </div>
+      <div class="form-group" style="max-width:110px">
+        <label>Nb inscrits</label>
+        <input type="number" id="mc-course-nb-inscrits" placeholder="Ex : 120" min="0" step="1"
+               title="Laisser vide pour calculer automatiquement depuis les coureurs importés" />
+      </div>
     </div>
+    <p style="font-size:.75rem;color:var(--muted);margin-top:2px;margin-bottom:8px">
+      Nb inscrits : laisser vide pour utiliser le nombre de coureurs importés.
+    </p>
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px">
       <button class="btn btn-ghost" id="modal-course-cancel">Annuler</button>
       <button class="btn btn-green" id="modal-course-save">Enregistrer</button>
@@ -1496,18 +1504,20 @@ document.getElementById('btn-new-course').addEventListener('click', () => {
   document.getElementById('modal-course-title').textContent = 'Nouvelle course';
   document.getElementById('mc-course-nom').value   = '';
   document.getElementById('mc-course-dist').value  = '';
-  document.getElementById('mc-course-annee').value = selectedAnnee || new Date().getFullYear();
+  document.getElementById('mc-course-annee').value      = selectedAnnee || new Date().getFullYear();
+  document.getElementById('mc-course-nb-inscrits').value = '';
   const overlay = document.getElementById('modal-course-overlay');
   overlay.style.display = 'flex';
   document.getElementById('mc-course-nom').focus();
 });
 
-function openEditCourse(id, nom, dist, annee) {
+function openEditCourse(id, nom, dist, annee, nbInscrits) {
   editingCourseId = id;
   document.getElementById('modal-course-title').textContent = 'Modifier la course';
-  document.getElementById('mc-course-nom').value   = nom;
-  document.getElementById('mc-course-dist').value  = dist;
-  document.getElementById('mc-course-annee').value = annee ?? new Date().getFullYear();
+  document.getElementById('mc-course-nom').value          = nom;
+  document.getElementById('mc-course-dist').value         = dist;
+  document.getElementById('mc-course-annee').value        = annee ?? new Date().getFullYear();
+  document.getElementById('mc-course-nb-inscrits').value  = nbInscrits ?? '';
   const overlay = document.getElementById('modal-course-overlay');
   overlay.style.display = 'flex';
   document.getElementById('mc-course-nom').focus();
@@ -1525,14 +1535,16 @@ document.getElementById('modal-course-save').addEventListener('click', async () 
   if (!dist || dist <= 0) return showToast('Distance invalide', 'warning');
   if (!annee || annee < 2000) return showToast('Année invalide', 'warning');
 
+  const nbInscritsVal = document.getElementById('mc-course-nb-inscrits').value.trim();
+  const nb_inscrits   = nbInscritsVal !== '' ? parseInt(nbInscritsVal, 10) : null;
   const btn = document.getElementById('modal-course-save');
   btn.disabled = true;
 
   let res;
   if (editingCourseId) {
-    res = await api('PUT', `/api/admin/course/${editingCourseId}`, { nom, distance_km: dist, annee });
+    res = await api('PUT', `/api/admin/course/${editingCourseId}`, { nom, distance_km: dist, annee, nb_inscrits });
   } else {
-    res = await api('POST', '/api/admin/course', { nom, distance_km: dist, annee });
+    res = await api('POST', '/api/admin/course', { nom, distance_km: dist, annee, nb_inscrits });
   }
 
   btn.disabled = false;
