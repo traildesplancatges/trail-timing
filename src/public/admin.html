@@ -922,7 +922,7 @@ async function loadStats() {
         </div>
       </div>
       <div style="font-size:.82rem;color:var(--muted);white-space:nowrap">
-        ${c.nb_arrives} / ${c.nb_inscrits || '?'} (${pct}%)
+        ${c.nb_arrives} / ${c.nb_inscrits ?? '?'} (${pct}%)
       </div>
     </div>`;
   }).join('');
@@ -958,7 +958,7 @@ function renderCoursesGrid(data) {
       <span class="badge ${badgeClass}">${label}</span>
       <div class="c-stats">
         <div class="c-stat"><span class="n">${c.nb_arrives}</span><span class="lb">Arrivées</span></div>
-        <div class="c-stat"><span class="n">${c.nb_inscrits || '?'}</span><span class="lb">Inscrits</span></div>
+        <div class="c-stat"><span class="n">${c.nb_inscrits ?? '?'}</span><span class="lb">Inscrits</span></div>
       </div>
       <div class="btn-row">${btns}</div>
     </div>`;

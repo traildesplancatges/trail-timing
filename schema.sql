@@ -49,3 +49,6 @@ INSERT OR IGNORE INTO courses (id, nom, distance_km, annee) VALUES
   (1, '5km',  5.0,  2026),
   (2, '10km', 10.0, 2026),
   (3, '18km', 18.0, 2026);
+
+-- Migration : ajout nb_inscrits (nombre total d'inscrits, optionnel/manuel)
+-- ALTER TABLE courses ADD COLUMN nb_inscrits INTEGER DEFAULT NULL;

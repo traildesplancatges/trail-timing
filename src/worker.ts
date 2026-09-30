@@ -43,6 +43,7 @@ interface Course {
   nom: string;
   distance_km: number;
   annee: number;
+  nb_inscrits: number | null; // NULL = calculé depuis la table coureurs
   heure_depart: string | null;
   statut: 'attente' | 'en_cours' | 'terminee';
 }
@@ -169,18 +170,22 @@ async function getCourses(url: URL, env: Env): Promise<Response> {
 
   if (annee && Number.isInteger(annee)) {
     query = `SELECT c.id, c.nom, c.distance_km, c.annee, c.heure_depart, c.statut,
-                    COUNT(a.id) AS nb_arrives
+                    COALESCE(c.nb_inscrits, NULLIF(COUNT(DISTINCT cr.dossard),0), COUNT(DISTINCT a.id)) AS nb_inscrits,
+                    COUNT(DISTINCT a.id) AS nb_arrives
              FROM courses c
-             LEFT JOIN arrivees a ON a.course_id = c.id
+             LEFT JOIN coureurs cr ON cr.course_id = c.id
+             LEFT JOIN arrivees a  ON a.course_id  = c.id
              WHERE c.annee = ?
              GROUP BY c.id
              ORDER BY c.distance_km ASC`;
     stmt = env.DB.prepare(query).bind(annee);
   } else {
     query = `SELECT c.id, c.nom, c.distance_km, c.annee, c.heure_depart, c.statut,
-                    COUNT(a.id) AS nb_arrives
+                    COALESCE(c.nb_inscrits, NULLIF(COUNT(DISTINCT cr.dossard),0), COUNT(DISTINCT a.id)) AS nb_inscrits,
+                    COUNT(DISTINCT a.id) AS nb_arrives
              FROM courses c
-             LEFT JOIN arrivees a ON a.course_id = c.id
+             LEFT JOIN coureurs cr ON cr.course_id = c.id
+             LEFT JOIN arrivees a  ON a.course_id  = c.id
              GROUP BY c.id
              ORDER BY c.annee DESC, c.distance_km ASC`;
     stmt = env.DB.prepare(query);
@@ -232,18 +237,23 @@ async function getClassement(courseId: number, env: Env): Promise<Response> {
 // ─── Handlers bénévoles ───────────────────────────────────────────────────────
 
 // POST /api/arrivee
+// Trois modes selon le body :
+//   1. { course_id, dossard } + pas de slot en attente → crée arrivée complète (temps = maintenant)
+//   2. { course_id, dossard } + slots en attente → associe dossard au slot le plus ancien
+//   3. { course_id } sans dossard → crée un slot (arrivée sans dossard, temps = maintenant)
 async function postArrivee(request: Request, env: Env): Promise<Response> {
   if (!requireBenevole(request, env)) return err('Non autorisé', 401);
 
   let body: { dossard?: unknown; course_id?: unknown; benevole_id?: unknown };
   try { body = await request.json(); } catch { return err('Corps JSON invalide'); }
 
-  const dossard   = Number(body.dossard);
   const courseId  = Number(body.course_id);
   const benevoleId = String(body.benevole_id ?? '').slice(0, 50);
+  const hasDossard = body.dossard !== undefined && body.dossard !== null && body.dossard !== '';
+  const dossard   = hasDossard ? Number(body.dossard) : null;
 
-  if (!Number.isInteger(dossard) || dossard < 1)  return err('Numéro de dossard invalide');
   if (!Number.isInteger(courseId) || courseId < 1) return err('course_id invalide');
+  if (hasDossard && (!Number.isInteger(dossard) || dossard! < 1)) return err('Numéro de dossard invalide');
 
   const course = await env.DB.prepare(
     "SELECT * FROM courses WHERE id = ? AND statut = 'en_cours'",
@@ -251,37 +261,105 @@ async function postArrivee(request: Request, env: Env): Promise<Response> {
   if (!course) return err('Course non démarrée ou introuvable', 422);
 
   const heureArrivee = new Date().toISOString();
-  try {
+
+  // ─── Cas 3 : Pas de dossard → créer un slot (temps capturé sans identification)
+  if (!hasDossard) {
     await env.DB.prepare(
       `INSERT INTO arrivees (dossard, course_id, heure_arrivee, saisie_par)
-       VALUES (?, ?, ?, ?)`,
-    ).bind(dossard, courseId, heureArrivee, benevoleId).run();
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    if (msg.includes('UNIQUE') || msg.includes('unique')) {
-      const existing = await env.DB.prepare(
-        'SELECT heure_arrivee, saisie_par FROM arrivees WHERE dossard = ? AND course_id = ?',
-      ).bind(dossard, courseId).first<{ heure_arrivee: string; saisie_par: string }>();
-      return json({ error: 'Dossard déjà enregistré', dossard,
-                    heure_arrivee: existing?.heure_arrivee, saisie_par: existing?.saisie_par }, 409);
-    }
-    return err(`Erreur base de données : ${msg}`, 500);
+       VALUES (NULL, ?, ?, ?)`,
+    ).bind(courseId, heureArrivee, benevoleId).run();
+
+    // Compter les slots en attente
+    const slotsCount = await env.DB.prepare(
+      'SELECT COUNT(*) AS count FROM arrivees WHERE course_id = ? AND dossard IS NULL',
+    ).bind(courseId).first<{ count: number }>();
+
+    const depart = new Date(course.heure_depart!).getTime();
+    const temps_sec = Math.round((new Date(heureArrivee).getTime() - depart) / 1000);
+
+    return json({
+      success: true,
+      mode: 'slot_created',
+      heure_arrivee: heureArrivee,
+      temps_brut: formatTemps(temps_sec),
+      slots_en_attente: slotsCount?.count ?? 1,
+    }, 201);
   }
 
+  // ─── Cas 1 ou 2 : Dossard fourni
+  // Vérifier si ce dossard est déjà enregistré
+  const existingDossard = await env.DB.prepare(
+    'SELECT id, heure_arrivee, saisie_par FROM arrivees WHERE dossard = ? AND course_id = ?',
+  ).bind(dossard, courseId).first<{ id: number; heure_arrivee: string; saisie_par: string }>();
+
+  if (existingDossard) {
+    return json({
+      error: 'Dossard déjà enregistré',
+      dossard,
+      heure_arrivee: existingDossard.heure_arrivee,
+      saisie_par: existingDossard.saisie_par,
+    }, 409);
+  }
+
+  // Chercher le slot le plus ancien en attente (dossard NULL)
+  const oldestSlot = await env.DB.prepare(
+    `SELECT id, heure_arrivee FROM arrivees 
+     WHERE course_id = ? AND dossard IS NULL 
+     ORDER BY heure_arrivee ASC LIMIT 1`,
+  ).bind(courseId).first<{ id: number; heure_arrivee: string }>();
+
+  let finalHeureArrivee: string;
+  let mode: 'direct' | 'slot_associated';
+
+  if (oldestSlot) {
+    // ─── Cas 2 : Associer le dossard au slot existant
+    await env.DB.prepare(
+      'UPDATE arrivees SET dossard = ?, saisie_par = ? WHERE id = ?',
+    ).bind(dossard, benevoleId, oldestSlot.id).run();
+    finalHeureArrivee = oldestSlot.heure_arrivee;
+    mode = 'slot_associated';
+  } else {
+    // ─── Cas 1 : Créer une arrivée complète directement
+    try {
+      await env.DB.prepare(
+        `INSERT INTO arrivees (dossard, course_id, heure_arrivee, saisie_par)
+         VALUES (?, ?, ?, ?)`,
+      ).bind(dossard, courseId, heureArrivee, benevoleId).run();
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return err(`Erreur base de données : ${msg}`, 500);
+    }
+    finalHeureArrivee = heureArrivee;
+    mode = 'direct';
+  }
+
+  // Calculer la position (arrivées avec dossard uniquement pour le classement)
   const position = await env.DB.prepare(
-    'SELECT COUNT(*) AS pos FROM arrivees WHERE course_id = ? AND heure_arrivee <= ?',
-  ).bind(courseId, heureArrivee).first<{ pos: number }>();
+    `SELECT COUNT(*) AS pos FROM arrivees 
+     WHERE course_id = ? AND dossard IS NOT NULL AND heure_arrivee <= ?`,
+  ).bind(courseId, finalHeureArrivee).first<{ pos: number }>();
 
   const coureur = await env.DB.prepare(
     'SELECT nom, prenom FROM coureurs WHERE dossard = ? AND course_id = ?',
   ).bind(dossard, courseId).first<{ nom: string; prenom: string }>();
 
   const depart = new Date(course.heure_depart!).getTime();
-  const temps_sec = Math.round((new Date(heureArrivee).getTime() - depart) / 1000);
+  const temps_sec = Math.round((new Date(finalHeureArrivee).getTime() - depart) / 1000);
+
+  // Compter les slots restants
+  const slotsCount = await env.DB.prepare(
+    'SELECT COUNT(*) AS count FROM arrivees WHERE course_id = ? AND dossard IS NULL',
+  ).bind(courseId).first<{ count: number }>();
 
   return json({
-    success: true, dossard, position: position?.pos ?? '?',
-    heure_arrivee: heureArrivee, temps_brut: formatTemps(temps_sec), coureur: coureur ?? null,
+    success: true,
+    mode,
+    dossard,
+    position: position?.pos ?? '?',
+    heure_arrivee: finalHeureArrivee,
+    temps_brut: formatTemps(temps_sec),
+    coureur: coureur ?? null,
+    slots_en_attente: slotsCount?.count ?? 0,
   }, 201);
 }
 
@@ -291,6 +369,86 @@ async function checkArrivee(courseId: number, dossard: number, env: Env): Promis
     'SELECT * FROM arrivees WHERE course_id = ? AND dossard = ?',
   ).bind(courseId, dossard).first();
   return json({ enregistre: !!row, arrivee: row ?? null });
+}
+
+// GET /api/arrivee/slots/:courseId — liste les slots en attente (dossard NULL)
+async function getSlots(courseId: number, env: Env): Promise<Response> {
+  const course = await env.DB.prepare(
+    'SELECT * FROM courses WHERE id = ?',
+  ).bind(courseId).first<Course>();
+  if (!course) return err('Course introuvable', 404);
+
+  const { results } = await env.DB.prepare(
+    `SELECT id, heure_arrivee, saisie_par 
+     FROM arrivees 
+     WHERE course_id = ? AND dossard IS NULL 
+     ORDER BY heure_arrivee ASC`,
+  ).bind(courseId).all<{ id: number; heure_arrivee: string; saisie_par: string }>();
+
+  const depart = course.heure_depart ? new Date(course.heure_depart).getTime() : 0;
+  const slots = results.map((r, index) => {
+    const temps_sec = depart > 0
+      ? Math.round((new Date(r.heure_arrivee).getTime() - depart) / 1000)
+      : 0;
+    return {
+      id: r.id,
+      position: index + 1,
+      heure_arrivee: r.heure_arrivee,
+      temps_brut: formatTemps(temps_sec),
+      saisie_par: r.saisie_par,
+    };
+  });
+
+  return json({ course_id: courseId, count: slots.length, slots });
+}
+
+// DELETE /api/arrivee/slot/:id — supprime un slot en attente (dossard NULL uniquement)
+async function deleteSlot(slotId: number, request: Request, env: Env): Promise<Response> {
+  if (!requireBenevole(request, env)) return err('Non autorisé', 401);
+
+  const slot = await env.DB.prepare(
+    'SELECT * FROM arrivees WHERE id = ?',
+  ).bind(slotId).first<{ id: number; dossard: number | null; course_id: number }>();
+
+  if (!slot) return err('Slot introuvable', 404);
+  if (slot.dossard !== null) return err('Ce slot a déjà un dossard associé, impossible de le supprimer', 409);
+
+  await env.DB.prepare('DELETE FROM arrivees WHERE id = ?').bind(slotId).run();
+
+  // Compter les slots restants
+  const slotsCount = await env.DB.prepare(
+    'SELECT COUNT(*) AS count FROM arrivees WHERE course_id = ? AND dossard IS NULL',
+  ).bind(slot.course_id).first<{ count: number }>();
+
+  return json({ success: true, deleted_id: slotId, slots_en_attente: slotsCount?.count ?? 0 });
+}
+
+// DELETE /api/arrivee/slot/last/:courseId — supprime le dernier slot en attente
+async function deleteLastSlot(courseId: number, request: Request, env: Env): Promise<Response> {
+  if (!requireBenevole(request, env)) return err('Non autorisé', 401);
+
+  const course = await env.DB.prepare(
+    'SELECT id FROM courses WHERE id = ?',
+  ).bind(courseId).first();
+  if (!course) return err('Course introuvable', 404);
+
+  // Trouver le slot le plus récent (dernier créé)
+  const lastSlot = await env.DB.prepare(
+    `SELECT id FROM arrivees 
+     WHERE course_id = ? AND dossard IS NULL 
+     ORDER BY heure_arrivee DESC LIMIT 1`,
+  ).bind(courseId).first<{ id: number }>();
+
+  if (!lastSlot) return err('Aucun slot en attente à supprimer', 404);
+
+  await env.DB.prepare('DELETE FROM arrivees WHERE id = ?').bind(lastSlot.id).run();
+
+  // Compter les slots restants
+  const slotsCount = await env.DB.prepare(
+    'SELECT COUNT(*) AS count FROM arrivees WHERE course_id = ? AND dossard IS NULL',
+  ).bind(courseId).first<{ count: number }>();
+
+  return json({ success: true, deleted_id: lastSlot.id, slots_en_attente: slotsCount?.count ?? 0 });
 }
 
 // ─── Handlers admin ───────────────────────────────────────────────────────────
@@ -469,8 +627,8 @@ async function getStats(request: Request, env: Env): Promise<Response> {
   if (!await requireAdmin(request, env)) return err('Non autorisé', 401);
   const { results } = await env.DB.prepare(
     `SELECT c.id, c.nom, c.annee, c.statut, c.heure_depart,
-            COUNT(DISTINCT cr.dossard) AS nb_inscrits,
-            COUNT(DISTINCT a.dossard)  AS nb_arrives
+            COALESCE(c.nb_inscrits, NULLIF(COUNT(DISTINCT cr.dossard),0), COUNT(DISTINCT a.dossard)) AS nb_inscrits,
+            COUNT(DISTINCT a.dossard) AS nb_arrives
      FROM courses c
      LEFT JOIN coureurs cr ON cr.course_id = c.id
      LEFT JOIN arrivees a  ON a.course_id  = c.id
@@ -512,17 +670,19 @@ async function arriveeManuelle(request: Request, env: Env): Promise<Response> {
 // POST /api/admin/course  body: { nom, distance_km, annee? }
 async function createCourse(request: Request, env: Env): Promise<Response> {
   if (!await requireAdmin(request, env)) return err('Non autorisé', 401);
-  let body: { nom?: unknown; distance_km?: unknown; annee?: unknown };
+  let body: { nom?: unknown; distance_km?: unknown; annee?: unknown; nb_inscrits?: unknown };
   try { body = await request.json(); } catch { return err('JSON invalide'); }
   const nom  = String(body.nom ?? '').trim();
   const dist = Number(body.distance_km);
   const annee = body.annee !== undefined ? Number(body.annee) : new Date().getFullYear();
+  const nbInscrits = body.nb_inscrits !== undefined && body.nb_inscrits !== ''
+    ? Number(body.nb_inscrits) : null;
   if (!nom)              return err('nom requis');
   if (isNaN(dist) || dist <= 0)   return err('distance_km invalide');
   if (!Number.isInteger(annee) || annee < 2000) return err('annee invalide');
   const result = await env.DB.prepare(
-    'INSERT INTO courses (nom, distance_km, annee) VALUES (?, ?, ?)',
-  ).bind(nom, dist, annee).run();
+    'INSERT INTO courses (nom, distance_km, annee, nb_inscrits) VALUES (?, ?, ?, ?)',
+  ).bind(nom, dist, annee, nbInscrits).run();
   const newId = (result.meta as Record<string, unknown>)['last_row_id'] ?? null;
   return json({ success: true, id: newId }, 201);
 }
@@ -532,17 +692,20 @@ async function updateCourse(courseId: number, request: Request, env: Env): Promi
   if (!await requireAdmin(request, env)) return err('Non autorisé', 401);
   const course = await env.DB.prepare('SELECT * FROM courses WHERE id = ?').bind(courseId).first<Course>();
   if (!course) return err('Course introuvable', 404);
-  let body: { nom?: unknown; distance_km?: unknown; annee?: unknown };
+  let body: { nom?: unknown; distance_km?: unknown; annee?: unknown; nb_inscrits?: unknown };
   try { body = await request.json(); } catch { return err('JSON invalide'); }
   const nom   = body.nom   !== undefined ? String(body.nom).trim()   : course.nom;
   const dist  = body.distance_km !== undefined ? Number(body.distance_km) : course.distance_km;
   const annee = body.annee !== undefined ? Number(body.annee) : course.annee;
+  const nbInscrits = body.nb_inscrits !== undefined
+    ? (body.nb_inscrits === '' || body.nb_inscrits === null ? null : Number(body.nb_inscrits))
+    : course.nb_inscrits;
   if (!nom)              return err('nom requis');
   if (isNaN(dist) || dist <= 0)   return err('distance_km invalide');
   if (!Number.isInteger(annee) || annee < 2000) return err('annee invalide');
   await env.DB.prepare(
-    'UPDATE courses SET nom=?, distance_km=?, annee=? WHERE id=?',
-  ).bind(nom, dist, annee, courseId).run();
+    'UPDATE courses SET nom=?, distance_km=?, annee=?, nb_inscrits=? WHERE id=?',
+  ).bind(nom, dist, annee, nbInscrits, courseId).run();
   return json({ success: true });
 }
 
@@ -723,15 +886,28 @@ async function importClassement(request: Request, env: Env): Promise<Response> {
     }
   }
 
-  // Mettre à jour la course : heure_depart si non définie + statut terminée
+  // Mettre à jour la course : heure_depart si non définie + statut terminée + nb_inscrits si NULL
+  const updateFields: string[] = [];
+  const updateValues: unknown[] = [];
+
   if (!course.heure_depart) {
-    await env.DB.prepare(
-      "UPDATE courses SET heure_depart = ?, statut = 'terminee' WHERE id = ?",
-    ).bind(heureDepart, courseId).run();
+    updateFields.push("heure_depart = ?", "statut = 'terminee'");
+    updateValues.push(heureDepart);
   } else if (course.statut !== 'terminee') {
+    updateFields.push("statut = 'terminee'");
+  }
+
+  // Si nb_inscrits n'est pas encore défini manuellement, le remplir avec le total importé
+  if (course.nb_inscrits == null) {  // == couvre null ET undefined
+    updateFields.push('nb_inscrits = ?');
+    updateValues.push(lignes.length);
+  }
+
+  if (updateFields.length > 0) {
+    updateValues.push(courseId);
     await env.DB.prepare(
-      "UPDATE courses SET statut = 'terminee' WHERE id = ?",
-    ).bind(courseId).run();
+      `UPDATE courses SET ${updateFields.join(', ')} WHERE id = ?`,
+    ).bind(...updateValues).run();
   }
 
   return json({
@@ -779,6 +955,24 @@ export default {
     const checkArriveeMatch = path.match(/^\/api\/arrivee\/(\d+)\/(\d+)$/);
     if (checkArriveeMatch && method === 'GET') {
       return checkArrivee(Number(checkArriveeMatch[1]), Number(checkArriveeMatch[2]), env);
+    }
+
+    // GET /api/arrivee/slots/:courseId — liste des slots en attente
+    const slotsMatch = path.match(/^\/api\/arrivee\/slots\/(\d+)$/);
+    if (slotsMatch && method === 'GET') {
+      return getSlots(Number(slotsMatch[1]), env);
+    }
+
+    // DELETE /api/arrivee/slot/last/:courseId — supprime le dernier slot
+    const deleteLastSlotMatch = path.match(/^\/api\/arrivee\/slot\/last\/(\d+)$/);
+    if (deleteLastSlotMatch && method === 'DELETE') {
+      return deleteLastSlot(Number(deleteLastSlotMatch[1]), request, env);
+    }
+
+    // DELETE /api/arrivee/slot/:id — supprime un slot spécifique
+    const deleteSlotMatch = path.match(/^\/api\/arrivee\/slot\/(\d+)$/);
+    if (deleteSlotMatch && method === 'DELETE') {
+      return deleteSlot(Number(deleteSlotMatch[1]), request, env);
     }
 
     // ── Routes admin ────────────────────────────────────────────────────────
